@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Beheer — L'Ancienne École</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="stylesheet" href="admin.css">
+</head>
+<body>
+
+<div id="ae-admin-root" class="admin-wrap">
+  <div id="ae-login-screen" class="admin-login-screen" hidden>
+    <form id="ae-login-form" class="admin-login-card">
+      <div class="kicker">L'Ancienne École</div>
+      <h1>Beheer</h1>
+      <p class="admin-dim">Log in om nachtprijzen, minimumverblijf, kortingen en toeslagen te beheren.</p>
+      <div class="field">
+        <label for="ae-login-user">Gebruikersnaam</label>
+        <input class="input" type="text" id="ae-login-user" name="username" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label for="ae-login-pass">Wachtwoord</label>
+        <input class="input" type="password" id="ae-login-pass" name="password" autocomplete="current-password" required>
+      </div>
+      <button class="btn-primary" type="submit" style="width:100%;margin-top:8px;">Inloggen</button>
+      <div id="ae-login-error" class="admin-error" role="alert" aria-live="assertive"></div>
+    </form>
+  </div>
+
+  <div id="ae-app-screen" hidden>
+    <header class="admin-header">
+      <div>
+        <div class="kicker">L'Ancienne École</div>
+        <h1>Beheer</h1>
+      </div>
+      <button id="ae-logout-btn" class="btn-ghost" type="button">Uitloggen</button>
+    </header>
+
+    <div id="ae-sync-banner" class="admin-banner" hidden></div>
+
+    <nav class="admin-tabs" role="tablist" aria-label="Beheeronderdelen">
+      <button class="admin-tab active" data-tab="calendar" role="tab" aria-selected="true">Kalender &amp; prijzen</button>
+      <button class="admin-tab" data-tab="settings" role="tab" aria-selected="false">Instellingen</button>
+      <button class="admin-tab" data-tab="bookings" role="tab" aria-selected="false">Aanvragen</button>
+    </nav>
+
+    <section id="ae-tab-calendar" class="admin-tab-panel" role="tabpanel">
+      <div class="admin-calendar-layout">
+        <div class="admin-calendar-col">
+          <div class="admin-cal-head">
+            <button type="button" class="btn-ghost" id="ae-cal-prev" aria-label="Vorige maand">&larr;</button>
+            <h2 id="ae-cal-month-label">&nbsp;</h2>
+            <button type="button" class="btn-ghost" id="ae-cal-next" aria-label="Volgende maand">&rarr;</button>
+          </div>
+          <div class="admin-cal-weekdays">
+            <div>MA</div><div>DI</div><div>WO</div><div>DO</div><div>VR</div><div>ZA</div><div>ZO</div>
+          </div>
+          <div id="ae-cal-grid" class="admin-cal-grid" role="grid" aria-label="Prijskalender"></div>
+          <div class="admin-legend">
+            <span><i class="dot dot-direct"></i>Eigen boeking (goedgekeurd/betaald)</span>
+            <span><i class="dot dot-requested"></i>Aanvraag (in afwachting)</span>
+            <span><i class="dot dot-airbnb"></i>Airbnb</span>
+            <span><i class="dot dot-noprice"></i>Geen prijs ingesteld (niet boekbaar)</span>
+          </div>
+        </div>
+
+        <div class="admin-panel-col">
+          <div id="ae-selection-panel" class="admin-card">
+            <h3>Periode</h3>
+            <p class="admin-dim admin-small">Klik een datum om te beginnen, klik een latere datum om de periode af te maken. Eén klik = die ene nacht.</p>
+            <div id="ae-selection-summary" class="admin-selection-summary">Nog geen datums geselecteerd.</div>
+
+            <div class="admin-field-row">
+              <div class="field">
+                <label for="ae-price-input">Nachtprijs (&euro;)</label>
+                <input class="input" type="number" min="0.01" step="0.01" id="ae-price-input" placeholder="bijv. 180,00">
+              </div>
+              <button type="button" class="btn-primary" id="ae-set-price-btn" disabled>Prijs instellen</button>
+            </div>
+            <button type="button" class="btn-ghost admin-link-btn" id="ae-clear-price-btn" disabled>Prijs wissen (niet boekbaar maken)</button>
+
+            <hr class="admin-hr">
+
+            <div class="admin-field-row">
+              <div class="field">
+                <label for="ae-min-nights-input">Minimumverblijf (nachten)</label>
+                <input class="input" type="number" min="1" step="1" id="ae-min-nights-input" placeholder="bijv. 7">
+              </div>
+              <button type="button" class="btn-primary" id="ae-set-min-nights-btn" disabled>Minimumverblijf instellen</button>
+            </div>
+            <button type="button" class="btn-ghost admin-link-btn" id="ae-clear-min-nights-btn" disabled>Terug naar standaard minimumverblijf</button>
+
+            <div id="ae-confirm-box" class="admin-confirm-box" hidden>
+              <p id="ae-confirm-text"></p>
+              <div class="admin-confirm-actions">
+                <button type="button" class="btn-primary" id="ae-confirm-yes">Ja, opslaan</button>
+                <button type="button" class="btn-ghost" id="ae-confirm-no">Annuleren</button>
+              </div>
+            </div>
+            <div id="ae-save-result" class="admin-save-result" role="status" aria-live="polite"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="ae-tab-settings" class="admin-tab-panel" hidden role="tabpanel">
+      <div id="ae-settings-form"></div>
+    </section>
+
+    <section id="ae-tab-bookings" class="admin-tab-panel" hidden role="tabpanel">
+      <div id="ae-bookings-list"></div>
+    </section>
+  </div>
+</div>
+
+<script src="admin.js"></script>
+</body>
+</html>

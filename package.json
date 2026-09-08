@@ -3,6 +3,9 @@
   "private": true,
   "version": "1.0.0",
   "description": "L'Ancienne École — site + direct-booking module with Airbnb iCal sync",
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
   "dependencies": {
     "@netlify/blobs": "^8.1.0",
     "ics": "^3.8.1",

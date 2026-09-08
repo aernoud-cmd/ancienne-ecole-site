@@ -2,8 +2,12 @@
 // Fetches the owner's Airbnb calendar export (AIRBNB_ICAL_URL, set as a
 // Netlify environment variable) and stores the list of booked nights, so the
 // public availability endpoint and the reserve-page calendar can block them.
+// A failed fetch never wipes out the last-known-good list — it's better to
+// keep working from slightly-stale data than to suddenly show everything as
+// free — but it DOES record the failure, surfaced on /admin, so it doesn't
+// go unnoticed. See _lib/store.mjs setAirbnbSyncError().
 import ical from "node-ical";
-import { setAirbnbBusyNights } from "./_lib/store.mjs";
+import { setAirbnbBusyNights, setAirbnbSyncError } from "./_lib/store.mjs";
 import { toISODate } from "./_lib/dates.mjs";
 
 export default async () => {
@@ -38,6 +42,7 @@ export default async () => {
     });
   } catch (e) {
     console.error("sync-airbnb failed:", e);
+    await setAirbnbSyncError(e.message);
     return new Response(JSON.stringify({ ok: false, error: e.message }), {
       status: 500,
       headers: { "content-type": "application/json" },

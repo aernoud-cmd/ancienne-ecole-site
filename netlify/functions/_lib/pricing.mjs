@@ -1,106 +1,181 @@
-// Shared price calculator — the single source of truth for what a stay
-// costs. Used by quote.mjs (live price shown to the guest while picking
-// dates), book.mjs (price locked in on the booking record at request time),
-// and respond.mjs (amount charged via the Stripe payment link on approval).
-// Never trust a price computed anywhere else — always recompute from here.
-import pricingConfig from "../../../pricing.json" with { type: "json" };
-import { nightsBetween } from "./dates.mjs";
+// The single source of truth for what a stay costs. Pure and synchronous —
+// it takes the settings and nightly-rates data as plain arguments (fetched
+// once by the caller) rather than reaching into Blobs itself, so the exact
+// same function can be unit-tested with fixed inputs and is trivially
+// reused by quote.mjs (live price while picking dates), book.mjs (the price
+// locked into the request), and respond.mjs (the amount actually charged).
+// Never trust a price computed anywhere else — always recompute from here,
+// from the CURRENT settings/rates — except for an existing booking, whose
+// stored quote (see book.mjs) is never recomputed once created.
+import { nightsBetween, isoWeekday } from "./dates.mjs";
+import { percentOfCents, roundCents } from "./money.mjs";
 
-export function loadPricingConfig() {
-  return pricingConfig;
-}
-
-// Nightly rental price for one specific night (YYYY-MM-DD), before any fees
-// or discounts — the base rate, or a matching dateOverrides entry.
-function nightlyRate(dateISO, config) {
-  for (const o of config.dateOverrides || []) {
-    if (dateISO >= o.start && dateISO <= o.end) return o.pricePerNight;
+export class QuoteError extends Error {
+  constructor(code, details = {}) {
+    super(code);
+    this.name = "QuoteError";
+    this.code = code;
+    this.details = details;
   }
-  return config.basePricePerNight;
-}
-
-function round2(n) {
-  return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
 /**
- * Computes the full Airbnb-style price breakdown for a stay.
- * @param {string} checkin  YYYY-MM-DD
- * @param {string} checkout YYYY-MM-DD
- * @param {number} adults
- * @param {number} children
- * @param {object} [config] defaults to pricing.json
+ * @param {object} input
+ * @param {string} input.checkin  YYYY-MM-DD
+ * @param {string} input.checkout YYYY-MM-DD
+ * @param {number} input.adults
+ * @param {number} input.children
+ * @param {object} settings  from getPricingSettings()
+ * @param {object} rates     from getAllRates() — { "YYYY-MM-DD": {priceCents,minNights} }
  */
-export function calculateQuote(checkin, checkout, adults, children, config = pricingConfig) {
-  const nights = nightsBetween(checkin, checkout); // array of YYYY-MM-DD
-  const nNights = nights.length;
-  const totalGuests = Math.max(1, Number(adults) + Number(children || 0));
+export function calculateQuote({ checkin, checkout, adults, children }, settings, rates) {
   const nAdults = Number(adults);
+  const nChildren = Number(children || 0);
+
+  if (!Number.isInteger(nAdults) || nAdults < 1 || !Number.isInteger(nChildren) || nChildren < 0) {
+    throw new QuoteError("PARTY_INVALID");
+  }
+  const cap = settings.capacity;
+  if (nAdults > cap.maxAdults || nChildren > cap.maxChildren || nAdults + nChildren > cap.maxTotalGuests) {
+    throw new QuoteError("CAPACITY_EXCEEDED", {
+      maxAdults: cap.maxAdults,
+      maxChildren: cap.maxChildren,
+      maxTotalGuests: cap.maxTotalGuests,
+    });
+  }
+
+  const nights = nightsBetween(checkin, checkout);
+  const nNights = nights.length;
+  if (nNights < 1) throw new QuoteError("DATES_INVALID");
+
+  // Minimum stay is a per-arrival-date rule (the same convention Airbnb and
+  // every other channel manager use): the night the guest checks in on is
+  // what decides the minimum, not every night the stay happens to touch.
+  // Explicit, deliberate choice — see README "Minimum stay across periods"
+  // for the edge case this doesn't try to solve on its own.
+  const arrivalMinNights = rates[checkin]?.minNights ?? settings.defaultMinNights ?? 1;
+  if (nNights < arrivalMinNights) {
+    throw new QuoteError("MIN_NIGHTS_NOT_MET", { requiredNights: arrivalMinNights });
+  }
+
+  if (Array.isArray(settings.allowedArrivalWeekdays) && settings.allowedArrivalWeekdays.length > 0) {
+    if (!settings.allowedArrivalWeekdays.includes(isoWeekday(checkin))) {
+      throw new QuoteError("ARRIVAL_DAY_NOT_ALLOWED", { allowedWeekdays: settings.allowedArrivalWeekdays });
+    }
+  }
 
   // 1. Base rental cost — sum of that night's rate for every night booked.
-  const perNight = nights.map((d) => ({ date: d, rate: nightlyRate(d, config) }));
-  const rentalSubtotal = perNight.reduce((sum, n) => sum + n.rate, 0);
-
-  // 2. Long-stay discount on the rental subtotal only. Month discount wins
-  // over week discount when a stay qualifies for both.
-  let discountLabel = null;
-  let discountPercent = 0;
-  if (config.monthDiscountPercent && nNights >= config.monthDiscountMinNights) {
-    discountPercent = config.monthDiscountPercent;
-    discountLabel = "Maandkorting";
-  } else if (config.weekDiscountPercent && nNights >= config.weekDiscountMinNights) {
-    discountPercent = config.weekDiscountPercent;
-    discountLabel = "Weekkorting";
+  // A night with no price set is simply not bookable — never €0, never a
+  // silent fallback to some other night's price.
+  const perNight = [];
+  for (const date of nights) {
+    const rate = rates[date];
+    if (!rate || !Number.isFinite(rate.priceCents) || rate.priceCents <= 0) {
+      throw new QuoteError("RATE_MISSING", { date });
+    }
+    perNight.push({ date, priceCents: rate.priceCents });
   }
-  const discountAmount = round2((rentalSubtotal * discountPercent) / 100);
-  const rentalAfterDiscount = round2(rentalSubtotal - discountAmount);
+  const rentalSubtotalCents = perNight.reduce((sum, n) => sum + n.priceCents, 0);
+
+  // 2. Long-stay discount, on the rental subtotal only. Month and week
+  // discounts never stack — month wins when a stay qualifies for both.
+  let discountKind = null; // "month" | "week" | null
+  let discountPercent = 0;
+  if (settings.monthDiscount?.enabled && nNights >= settings.monthDiscount.minNights) {
+    discountKind = "month";
+    discountPercent = settings.monthDiscount.percent;
+  } else if (settings.weekDiscount?.enabled && nNights >= settings.weekDiscount.minNights) {
+    discountKind = "week";
+    discountPercent = settings.weekDiscount.percent;
+  }
+  const discountAmountCents = discountPercent ? percentOfCents(rentalSubtotalCents, discountPercent) : 0;
+  const rentalAfterDiscountCents = rentalSubtotalCents - discountAmountCents;
+  // The same discount ratio applied per night, used below so tourist tax is
+  // computed on the price actually paid, not the pre-discount rate.
+  const discountRatio = rentalSubtotalCents > 0 ? rentalAfterDiscountCents / rentalSubtotalCents : 1;
 
   // 3. Linen surcharge — per person, either once for the whole booking or
   // per person per (part of a) week of the stay.
-  let linenFee = 0;
-  if (config.linenFeeMode === "per_week") {
-    const weeks = Math.max(1, Math.ceil(nNights / 7));
-    linenFee = round2(config.linenFeePerPerson * totalGuests * weeks);
+  const totalGuests = nAdults + nChildren;
+  let linenWeeks = null;
+  let linenFeeCents;
+  if (settings.linenFeeMode === "per_week") {
+    linenWeeks = Math.max(1, Math.ceil(nNights / 7));
+    linenFeeCents = settings.linenFeePerPersonCents * totalGuests * linenWeeks;
   } else {
-    linenFee = round2(config.linenFeePerPerson * totalGuests);
+    linenFeeCents = settings.linenFeePerPersonCents * totalGuests;
   }
 
-  // 4. Final cleaning — flat fee.
-  const cleaningFee = round2(config.cleaningFee || 0);
+  // 4. Final cleaning — flat, once per stay. (Deliberately no separate
+  // "included cleaning" toggle plus a fee on top — that would double-charge;
+  // cleaningFeeCents is the one and only cleaning line.)
+  const cleaningFeeCents = settings.cleaningFeeCents || 0;
 
-  // 5. Tourist tax — per night: rate% × (that night's rental rate ÷ total
-  // guests) × number of adults. Children don't owe the tax themselves, but
-  // still count toward splitting the night's price into a "per person" share.
-  const touristTax = round2(
-    perNight.reduce((sum, n) => {
-      const perPersonShare = n.rate / totalGuests;
-      return sum + (config.touristTaxRatePercent / 100) * perPersonShare * nAdults;
-    }, 0)
-  );
+  // 5. Tourist tax. Only adults owe it (settings.touristTax.minAge is
+  // documentation of the legal threshold — the site only ever collects an
+  // "adults" count, so every adult counted here is assumed to meet it).
+  // Computed on the price the guest actually pays: for "percentage" mode
+  // that means the post-discount per-night rate, not the sticker rate —
+  // see pricingDefaults.mjs for why, and for the "fixed_per_person_per_night"
+  // mode (the one that actually matches a classified accommodation's rules).
+  const tax = settings.touristTax;
+  let touristTaxBaseCents = 0;
+  if (tax.mode === "fixed_per_person_per_night") {
+    touristTaxBaseCents = roundCents(tax.fixedAmountCents * nAdults * nNights);
+  } else {
+    touristTaxBaseCents = perNight.reduce((sum, n) => {
+      const discountedNightCents = n.priceCents * discountRatio;
+      const perPersonShare = discountedNightCents / totalGuests;
+      let perAdultPerNight = percentOfCents(perPersonShare, tax.ratePercent);
+      if (Number.isFinite(tax.capCentsPerNight) && tax.capCentsPerNight > 0) {
+        perAdultPerNight = Math.min(perAdultPerNight, tax.capCentsPerNight);
+      }
+      return sum + perAdultPerNight * nAdults;
+    }, 0);
+    touristTaxBaseCents = roundCents(touristTaxBaseCents);
+  }
+  const touristTaxSurchargeCents = tax.departmentalSurchargePercent
+    ? percentOfCents(touristTaxBaseCents, tax.departmentalSurchargePercent)
+    : 0;
+  const touristTaxCents = touristTaxBaseCents + touristTaxSurchargeCents;
 
-  const depositAmount = round2(config.depositAmount || 0);
+  const depositCents = settings.depositCents || 0;
 
-  const total = round2(rentalAfterDiscount + linenFee + cleaningFee + touristTax);
-  const totalWithDeposit = round2(total + depositAmount);
+  const totalCents = rentalAfterDiscountCents + linenFeeCents + cleaningFeeCents + touristTaxCents;
+  const totalWithDepositCents = totalCents + depositCents;
 
   return {
-    currency: config.currency || "EUR",
+    currency: settings.currency || "EUR",
     nights: nNights,
     adults: nAdults,
-    children: Number(children || 0),
-    perNight, // [{date, rate}]
-    rentalSubtotal: round2(rentalSubtotal),
-    discountLabel,
+    children: nChildren,
+    perNight, // [{date, priceCents}]
+    rentalSubtotalCents,
+    discountKind, // "month" | "week" | null — frontend/email translate the label
     discountPercent,
-    discountAmount,
-    rentalAfterDiscount,
-    linenFee,
-    linenFeeMode: config.linenFeeMode,
-    cleaningFee,
-    touristTaxRatePercent: config.touristTaxRatePercent,
-    touristTax,
-    total, // rent + linen + cleaning + tax — what the guest owes for the stay
-    depositAmount, // shown/charged separately, not part of `total`
-    totalWithDeposit, // what's actually charged via the Stripe link
+    discountAmountCents,
+    rentalAfterDiscountCents,
+    linenFeeCents,
+    linenFeeMode: settings.linenFeeMode,
+    linenWeeks,
+    cleaningFeeCents,
+    touristTaxMode: tax.mode,
+    touristTaxRatePercent: tax.ratePercent,
+    touristTaxFixedAmountCents: tax.fixedAmountCents,
+    touristTaxSurchargePercent: tax.departmentalSurchargePercent || 0,
+    touristTaxBaseCents,
+    touristTaxSurchargeCents,
+    touristTaxCents,
+    depositCents,
+    totalCents, // rent + linen + cleaning + tax — what the guest owes for the stay
+    totalWithDepositCents, // what's actually charged via the Stripe link
+    // Full settings used for this calculation, so a booking created from
+    // this quote can store exactly what applied — later settings changes
+    // must never silently change an existing request's price. Cloned, not
+    // a live reference, so mutating the caller's settings object after the
+    // fact (e.g. the same `settings` reused for a later calculation) can
+    // never reach back into an already-issued quote.
+    settingsSnapshot: structuredClone(settings),
+    computedAt: new Date().toISOString(),
   };
 }

@@ -2,6 +2,10 @@
 // All credentials (RESEND_API_KEY, TWILIO_*, OWNER_EMAIL, OWNER_WHATSAPP_TO)
 // are read from environment variables the owner sets in Netlify's dashboard —
 // this file never hardcodes or stores a secret.
+//
+// Every message here is careful to say "requested" / "approved" / "paid" —
+// never "confirmed" on its own — because those are three different, clearly
+// distinct states in this booking flow (see README "Booking states").
 
 import { Resend } from "resend";
 import twilio from "twilio";
@@ -17,9 +21,15 @@ function resendClient() {
   return new Resend(key);
 }
 
-function fmtMoney(amount, currency = "EUR") {
-  return new Intl.NumberFormat("nl-NL", { style: "currency", currency }).format(amount);
+function fmtMoneyCents(cents, currency = "EUR") {
+  return new Intl.NumberFormat("nl-NL", { style: "currency", currency }).format((cents || 0) / 100);
 }
+
+const DISCOUNT_LABELS = {
+  en: { week: "Weekly discount", month: "Monthly discount" },
+  fr: { week: "Réduction hebdomadaire", month: "Réduction mensuelle" },
+  nl: { week: "Weekkorting", month: "Maandkorting" },
+};
 
 // Renders the price breakdown as a small HTML table — used in the owner's
 // review email (always English) and the guest's confirmation email (in
@@ -29,40 +39,41 @@ const QUOTE_LABELS = {
     rent: (n) => `${n} night(s) rent`,
     linen: "Linen",
     cleaning: "Cleaning",
-    tax: (p) => `Tourist tax (${p}%)`,
+    tax: "Tourist tax",
     total: "Total (stay)",
-    deposit: "Deposit (separate)",
+    deposit: "Refundable deposit (separate)",
   },
   fr: {
     rent: (n) => `Location (${n} nuits)`,
     linen: "Linge de maison",
     cleaning: "Ménage",
-    tax: (p) => `Taxe de séjour (${p}%)`,
+    tax: "Taxe de séjour",
     total: "Total (séjour)",
-    deposit: "Caution (séparée)",
+    deposit: "Caution remboursable (séparée)",
   },
   nl: {
     rent: (n) => `Huur (${n} nachten)`,
     linen: "Linnengoed",
     cleaning: "Eindschoonmaak",
-    tax: (p) => `Toeristenbelasting (${p}%)`,
+    tax: "Toeristenbelasting",
     total: "Totaal (verblijf)",
-    deposit: "Borg (apart)",
+    deposit: "Terugbetaalbare borg (apart)",
   },
 };
 
 function quoteTable(q, lang = "en") {
   if (!q) return "";
   const t = QUOTE_LABELS[lang] || QUOTE_LABELS.en;
-  const rows = [[t.rent(q.nights), fmtMoney(q.rentalSubtotal, q.currency)]];
-  if (q.discountPercent) {
-    rows.push([`${q.discountLabel} (-${q.discountPercent}%)`, `-${fmtMoney(q.discountAmount, q.currency)}`]);
+  const dl = DISCOUNT_LABELS[lang] || DISCOUNT_LABELS.en;
+  const rows = [[t.rent(q.nights), fmtMoneyCents(q.rentalSubtotalCents, q.currency)]];
+  if (q.discountKind) {
+    rows.push([`${dl[q.discountKind]} (-${q.discountPercent}%)`, `-${fmtMoneyCents(q.discountAmountCents, q.currency)}`]);
   }
-  rows.push([t.linen, fmtMoney(q.linenFee, q.currency)]);
-  rows.push([t.cleaning, fmtMoney(q.cleaningFee, q.currency)]);
-  rows.push([t.tax(q.touristTaxRatePercent), fmtMoney(q.touristTax, q.currency)]);
-  rows.push([`<b>${t.total}</b>`, `<b>${fmtMoney(q.total, q.currency)}</b>`]);
-  rows.push([t.deposit, fmtMoney(q.depositAmount, q.currency)]);
+  rows.push([t.linen, fmtMoneyCents(q.linenFeeCents, q.currency)]);
+  rows.push([t.cleaning, fmtMoneyCents(q.cleaningFeeCents, q.currency)]);
+  rows.push([t.tax, fmtMoneyCents(q.touristTaxCents, q.currency)]);
+  rows.push([`<b>${t.total}</b>`, `<b>${fmtMoneyCents(q.totalCents, q.currency)}</b>`]);
+  rows.push([t.deposit, fmtMoneyCents(q.depositCents, q.currency)]);
   return `
     <table style="border-collapse:collapse; margin: 4px 0 16px; font-size: 13.5px;">
       ${rows
@@ -87,7 +98,7 @@ export async function sendOwnerBookingAlert(booking) {
       await resend.emails.send({
         from: process.env.NOTIFY_FROM_EMAIL || "L'Ancienne École <bookings@ancienne-ecole.rent>",
         to: ownerEmail,
-        subject: `New booking request — ${booking.checkin} to ${booking.checkout}`,
+        subject: `New booking REQUEST — ${booking.checkin} to ${booking.checkout}`,
         html: `
           <div style="font-family: sans-serif; max-width: 520px;">
             <h2 style="margin-bottom:4px;">New direct booking request</h2>
@@ -103,9 +114,10 @@ export async function sendOwnerBookingAlert(booking) {
             </table>
             ${quoteTable(booking.quote)}
             <p>
-              <a href="${approveUrl}" style="background:#c9a769;color:#1a1408;padding:12px 22px;text-decoration:none;border-radius:3px;font-weight:600;margin-right:12px;">Confirm booking</a>
+              <a href="${approveUrl}" style="background:#c9a769;color:#1a1408;padding:12px 22px;text-decoration:none;border-radius:3px;font-weight:600;margin-right:12px;">Approve booking</a>
               <a href="${declineUrl}" style="color:#a44;text-decoration:underline;">Decline</a>
             </p>
+            <p style="font-size:12px;color:#999;">Approving does not mean paid — the guest still has to pay the link that gets sent. You'll get a separate email when Stripe confirms payment.</p>
           </div>
         `,
       });
@@ -128,14 +140,14 @@ export async function sendOwnerBookingAlert(booking) {
         from,
         to,
         body:
-          `New booking request for L'Ancienne École\n` +
+          `New booking REQUEST for L'Ancienne École\n` +
           `${booking.checkin} → ${booking.checkout} (${booking.nights} nights)\n` +
           `${booking.adults} adults, ${booking.children} children\n` +
           `${booking.name} — ${booking.email}\n` +
           (booking.quote
-            ? `Total: ${fmtMoney(booking.quote.total, booking.quote.currency)} + ${fmtMoney(booking.quote.depositAmount, booking.quote.currency)} deposit\n`
+            ? `Total: ${fmtMoneyCents(booking.quote.totalCents, booking.quote.currency)} + ${fmtMoneyCents(booking.quote.depositCents, booking.quote.currency)} deposit\n`
             : "") +
-          `Confirm: ${approveUrl}\n` +
+          `Approve: ${approveUrl}\n` +
           `Decline: ${declineUrl}`,
       });
       results.whatsapp = "sent";
@@ -154,21 +166,27 @@ const GUEST_COPY = {
     received: {
       subject: "We've received your booking request — L'Ancienne École",
       body: (b) =>
-        `<p>Thank you, ${b.name} — we've received your request for <b>${b.checkin} to ${b.checkout}</b> (${b.nights} nights, ${b.adults} adults${b.children ? ` + ${b.children} children` : ""}).</p>
-         <p>Aernoud checks every request against the calendar personally and confirms within 24 hours. You'll get a follow-up email as soon as he does.</p>`,
+        `<p>Thank you, ${b.name} — we've received your <b>request</b> for <b>${b.checkin} to ${b.checkout}</b> (${b.nights} nights, ${b.adults} adults${b.children ? ` + ${b.children} children` : ""}).</p>
+         <p>This is not yet a confirmed booking. Aernoud checks every request against the calendar personally and approves or declines it within 24 hours. You'll get a follow-up email either way.</p>`,
     },
     confirmed: {
-      subject: "Confirmed! Your stay at L'Ancienne École",
+      subject: "Your request has been approved — L'Ancienne École",
       body: (b) =>
-        `<p>Good news, ${b.name} — your stay from <b>${b.checkin} to ${b.checkout}</b> is confirmed.</p>
+        `<p>Good news, ${b.name} — your request for <b>${b.checkin} to ${b.checkout}</b> has been <b>approved</b> and the dates are held for you.</p>
          ${quoteTable(b.quote, "en")}
          ${
            b.stripePaymentLinkUrl
              ? `<p><a href="${b.stripePaymentLinkUrl}" style="background:#c9a769;color:#1a1408;padding:12px 22px;text-decoration:none;border-radius:3px;font-weight:600;">Pay now, securely</a></p>
-                <p style="font-size:13px;color:#888;">Includes a ${fmtMoney(b.quote?.depositAmount || 0, b.quote?.currency)} refundable security deposit, returned after your stay if there's no damage.</p>`
+                <p style="font-size:13px;color:#888;">Your booking is fully confirmed once this is paid. Includes a ${fmtMoneyCents(b.quote?.depositCents, b.quote?.currency)} refundable security deposit, returned after your stay if there's no damage.</p>`
              : `<p>Aernoud will be in touch shortly with a secure payment link.</p>`
          }
          <p>Thank you for booking directly with us!</p>`,
+    },
+    paid: {
+      subject: "Payment received — you're all set! L'Ancienne École",
+      body: (b) =>
+        `<p>Thank you, ${b.name} — we've received your payment for <b>${b.checkin} to ${b.checkout}</b>. Your stay is fully booked and paid.</p>
+         <p>We look forward to welcoming you!</p>`,
     },
     declined: {
       subject: "About your request — L'Ancienne École",
@@ -180,21 +198,27 @@ const GUEST_COPY = {
     received: {
       subject: "Nous avons bien reçu votre demande — L'Ancienne École",
       body: (b) =>
-        `<p>Merci, ${b.name} — nous avons bien reçu votre demande du <b>${b.checkin} au ${b.checkout}</b> (${b.nights} nuits, ${b.adults} adultes${b.children ? ` + ${b.children} enfants` : ""}).</p>
-         <p>Aernoud vérifie chaque demande personnellement et confirme sous 24h. Vous recevrez un e-mail dès que ce sera fait.</p>`,
+        `<p>Merci, ${b.name} — nous avons bien reçu votre <b>demande</b> du <b>${b.checkin} au ${b.checkout}</b> (${b.nights} nuits, ${b.adults} adultes${b.children ? ` + ${b.children} enfants` : ""}).</p>
+         <p>Ce n'est pas encore une réservation confirmée. Aernoud vérifie chaque demande personnellement et l'approuve ou la refuse sous 24h. Vous recevrez un e-mail dans les deux cas.</p>`,
     },
     confirmed: {
-      subject: "Confirmé ! Votre séjour à L'Ancienne École",
+      subject: "Votre demande a été approuvée — L'Ancienne École",
       body: (b) =>
-        `<p>Bonne nouvelle, ${b.name} — votre séjour du <b>${b.checkin} au ${b.checkout}</b> est confirmé.</p>
+        `<p>Bonne nouvelle, ${b.name} — votre demande du <b>${b.checkin} au ${b.checkout}</b> a été <b>approuvée</b> et les dates sont réservées pour vous.</p>
          ${quoteTable(b.quote, "fr")}
          ${
            b.stripePaymentLinkUrl
              ? `<p><a href="${b.stripePaymentLinkUrl}" style="background:#c9a769;color:#1a1408;padding:12px 22px;text-decoration:none;border-radius:3px;font-weight:600;">Payer en ligne, en sécurité</a></p>
-                <p style="font-size:13px;color:#888;">Inclut une caution remboursable de ${fmtMoney(b.quote?.depositAmount || 0, b.quote?.currency)}, restituée après votre séjour en l'absence de dégâts.</p>`
+                <p style="font-size:13px;color:#888;">Votre réservation est définitivement confirmée une fois payée. Inclut une caution remboursable de ${fmtMoneyCents(b.quote?.depositCents, b.quote?.currency)}, restituée après votre séjour en l'absence de dégâts.</p>`
              : `<p>Aernoud vous contactera bientôt avec un lien de paiement sécurisé.</p>`
          }
          <p>Merci d'avoir réservé directement !</p>`,
+    },
+    paid: {
+      subject: "Paiement reçu — c'est confirmé ! L'Ancienne École",
+      body: (b) =>
+        `<p>Merci, ${b.name} — nous avons bien reçu votre paiement pour le séjour du <b>${b.checkin} au ${b.checkout}</b>. Votre réservation est confirmée et payée.</p>
+         <p>Nous avons hâte de vous accueillir !</p>`,
     },
     declined: {
       subject: "Concernant votre demande — L'Ancienne École",
@@ -206,21 +230,27 @@ const GUEST_COPY = {
     received: {
       subject: "We hebben je aanvraag ontvangen — L'Ancienne École",
       body: (b) =>
-        `<p>Dank je, ${b.name} — we hebben je aanvraag ontvangen voor <b>${b.checkin} t/m ${b.checkout}</b> (${b.nights} nachten, ${b.adults} volwassenen${b.children ? ` + ${b.children} kinderen` : ""}).</p>
-         <p>Aernoud controleert elke aanvraag persoonlijk en bevestigt binnen 24 uur. Je krijgt een e-mail zodra hij dat gedaan heeft.</p>`,
+        `<p>Dank je, ${b.name} — we hebben je <b>aanvraag</b> ontvangen voor <b>${b.checkin} t/m ${b.checkout}</b> (${b.nights} nachten, ${b.adults} volwassenen${b.children ? ` + ${b.children} kinderen` : ""}).</p>
+         <p>Dit is nog geen bevestigde boeking. Aernoud controleert elke aanvraag persoonlijk en keurt 'm binnen 24 uur goed of af. Je krijgt in beide gevallen een e-mail.</p>`,
     },
     confirmed: {
-      subject: "Bevestigd! Je verblijf bij L'Ancienne École",
+      subject: "Je aanvraag is goedgekeurd — L'Ancienne École",
       body: (b) =>
-        `<p>Goed nieuws, ${b.name} — je verblijf van <b>${b.checkin} t/m ${b.checkout}</b> is bevestigd.</p>
+        `<p>Goed nieuws, ${b.name} — je aanvraag voor <b>${b.checkin} t/m ${b.checkout}</b> is <b>goedgekeurd</b> en de data zijn voor je vastgehouden.</p>
          ${quoteTable(b.quote, "nl")}
          ${
            b.stripePaymentLinkUrl
              ? `<p><a href="${b.stripePaymentLinkUrl}" style="background:#c9a769;color:#1a1408;padding:12px 22px;text-decoration:none;border-radius:3px;font-weight:600;">Veilig betalen</a></p>
-                <p style="font-size:13px;color:#888;">Inclusief een terugbetaalbare borg van ${fmtMoney(b.quote?.depositAmount || 0, b.quote?.currency)}, die je na je verblijf terugkrijgt als er geen schade is.</p>`
+                <p style="font-size:13px;color:#888;">Je boeking is pas definitief bevestigd zodra dit betaald is. Inclusief een terugbetaalbare borg van ${fmtMoneyCents(b.quote?.depositCents, b.quote?.currency)}, die je na je verblijf terugkrijgt als er geen schade is.</p>`
              : `<p>Aernoud neemt snel contact op met een veilige betaallink.</p>`
          }
          <p>Bedankt voor het rechtstreeks boeken!</p>`,
+    },
+    paid: {
+      subject: "Betaling ontvangen — je zit goed! L'Ancienne École",
+      body: (b) =>
+        `<p>Dank je, ${b.name} — we hebben je betaling ontvangen voor <b>${b.checkin} t/m ${b.checkout}</b>. Je boeking is volledig bevestigd en betaald.</p>
+         <p>We kijken ernaar uit je te verwelkomen!</p>`,
     },
     declined: {
       subject: "Over je aanvraag — L'Ancienne École",

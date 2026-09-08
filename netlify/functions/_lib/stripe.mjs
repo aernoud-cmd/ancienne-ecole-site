@@ -1,6 +1,8 @@
 // Creates the one-off Stripe Payment Link a guest pays after their booking
 // is approved. STRIPE_SECRET_KEY is read from the environment — set by the
-// owner directly in Netlify, never seen by anyone else.
+// owner directly in Netlify, never seen by anyone else. Amounts here come
+// straight from the booking's frozen quote, already in integer cents —
+// never recomputed, never converted from a float.
 import Stripe from "stripe";
 
 function client() {
@@ -27,11 +29,6 @@ const LINE_LABELS = {
   },
 };
 
-// Stripe amounts are in the smallest currency unit (cents for EUR).
-function toCents(amount) {
-  return Math.round(amount * 100);
-}
-
 /**
  * Creates a single-use Stripe Payment Link for the given confirmed booking.
  * Returns { url, id } on success, or throws if STRIPE_SECRET_KEY isn't set
@@ -47,39 +44,39 @@ export async function createBookingPaymentLink(booking) {
   const currency = (q.currency || "EUR").toLowerCase();
 
   // One line item for the stay itself (rent after any long-stay discount,
-  // plus linen and cleaning — the guest sees these itemized in the
-  // confirmation email/quote already; the Stripe page shows the total per
-  // line, not a full re-breakdown, to keep it simple).
-  const stayAmount = round2(q.rentalAfterDiscount + q.linenFee + q.cleaningFee);
+  // plus linen and cleaning — the guest sees these itemized already in the
+  // quote/confirmation email; the Stripe page shows the total per line, not
+  // a full re-breakdown, to keep it simple).
+  const stayAmountCents = q.rentalAfterDiscountCents + q.linenFeeCents + q.cleaningFeeCents;
 
   const lineItems = [
     {
       quantity: 1,
       price_data: {
         currency,
-        unit_amount: toCents(stayAmount),
+        unit_amount: stayAmountCents,
         product_data: { name: t.stay(booking) },
       },
     },
   ];
 
-  if (q.touristTax > 0) {
+  if (q.touristTaxCents > 0) {
     lineItems.push({
       quantity: 1,
       price_data: {
         currency,
-        unit_amount: toCents(q.touristTax),
+        unit_amount: q.touristTaxCents,
         product_data: { name: t.tax },
       },
     });
   }
 
-  if (q.depositAmount > 0) {
+  if (q.depositCents > 0) {
     lineItems.push({
       quantity: 1,
       price_data: {
         currency,
-        unit_amount: toCents(q.depositAmount),
+        unit_amount: q.depositCents,
         product_data: {
           name: t.deposit,
           description:
@@ -112,8 +109,4 @@ export function verifyWebhookSignature(rawBody, signatureHeader) {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!stripe || !secret) throw new Error("Stripe webhook is not configured");
   return stripe.webhooks.constructEvent(rawBody, signatureHeader, secret);
-}
-
-function round2(n) {
-  return Math.round((n + Number.EPSILON) * 100) / 100;
 }

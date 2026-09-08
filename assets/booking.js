@@ -2,12 +2,20 @@
 // Talks to the Netlify Functions backend (availability / quote / book) —
 // see netlify/functions/. The price shown here always comes from the same
 // calculateQuote() the backend uses (netlify/functions/_lib/pricing.mjs), so
-// it never drifts from what's actually charged after approval.
+// it never drifts from what's actually charged after approval — except that
+// an owner price/settings change between "seeing this price" and "sending
+// the request" is real and possible; the request re-validates server-side
+// and tells the guest plainly if the price or rules changed.
 (function () {
   const MONTH_NAMES = {
     en: ["January","February","March","April","May","June","July","August","September","October","November","December"],
     fr: ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"],
     nl: ["januari","februari","maart","april","mei","juni","juli","augustus","september","oktober","november","december"],
+  };
+  const WEEKDAY_ABBR = {
+    en: ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],
+    fr: ["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"],
+    nl: ["Ma","Di","Wo","Do","Vr","Za","Zo"],
   };
   const STRINGS = {
     en: {
@@ -16,20 +24,40 @@
       sending: "Sending…",
       submit: "Send booking request",
       successTitle: "Request sent!",
-      successBody: "Thank you — Aernoud checks every request against the calendar personally and confirms within 24 hours. You'll hear from him by email.",
+      successBody: "Thank you — this is a REQUEST, not yet a confirmed booking. Aernoud checks it against the calendar personally and approves or declines it within 24 hours. You'll hear from him by email either way.",
       errorGeneric: "Something went wrong sending your request. Please try again, or reach out directly.",
       pickBothDates: "Please select both a check-in and a check-out date on the calendar.",
       fillNameEmail: "Please fill in your name and a valid email address.",
-      rangeUnavailable: "Some of the nights in that range are already booked. Please pick different dates.",
+      rangeUnavailable: "Some of the nights in that range are already booked or requested. Please pick different dates.",
       pricePrompt: "Select your dates to see the price.",
       priceError: "Couldn't load the price just now — you can still send your request; we'll confirm the exact amount.",
       rent: (n) => `${n} night${n === 1 ? "" : "s"} rent`,
-      linen: "Linen",
+      linen: (n, amt) => `Linen (${n} guests × ${amt})`,
+      linenPerWeek: (n, weeks, amt) => `Linen (${n} guests × ${weeks} week${weeks === 1 ? "" : "s"} × ${amt})`,
       cleaning: "Final cleaning",
-      tax: (p) => `Tourist tax (${p}%)`,
+      tax: "Tourist tax",
       total: "Total (stay)",
-      deposit: "Security deposit (refundable, separate)",
+      deposit: "Refundable security deposit (separate)",
       totalWithDeposit: "Charged via payment link",
+      discountWeek: "Weekly discount",
+      discountMonth: "Monthly discount",
+      rentAfterDiscount: "Rent after discount",
+      taxNoteFixed: (amt, adults, nights) => `${amt} per adult per night × ${adults} adult${adults === 1 ? "" : "s"} × ${nights} night${nights === 1 ? "" : "s"}. Children are exempt.`,
+      taxNotePercent: (pct) => `${pct}% of the (discounted) nightly rate per adult. Children are exempt.`,
+      depositNote: "Charged together with the stay total via the same secure payment link, then refunded by bank transfer after check-out once the house has been checked.",
+      minNights: (n) => `This period requires a minimum stay of ${n} nights.`,
+      rateMissing: "Some of the selected nights aren't open for booking yet. Please try different dates or contact us.",
+      capacityExceeded: (max) => `This stay allows at most ${max.maxAdults} adults and ${max.maxChildren} children (${max.maxTotalGuests} guests total).`,
+      arrivalDayNotAllowed: "Stays can't start on that day of the week. Please pick a different check-in date.",
+      prevMonth: "Previous month",
+      nextMonth: "Next month",
+      dayBooked: "booked",
+      dayRequested: "requested, awaiting approval",
+      dayAvailable: "available",
+      dayPast: "past date",
+      dayNoPrice: "not yet open for booking",
+      minStaySuffix: (n) => `, minimum stay if arriving here: ${n} nights`,
+      minStayNote: (n) => `Minimum stay: ${n} nights (some periods require longer — the calendar and price will tell you).`,
     },
     fr: {
       selectRange: "Sélectionnez vos dates d'arrivée et de départ sur le calendrier",
@@ -37,20 +65,40 @@
       sending: "Envoi…",
       submit: "Envoyer la demande de réservation",
       successTitle: "Demande envoyée !",
-      successBody: "Merci — Aernoud vérifie chaque demande personnellement et confirme sous 24 heures. Vous recevrez sa réponse par e-mail.",
+      successBody: "Merci — ceci est une DEMANDE, pas encore une réservation confirmée. Aernoud la vérifie personnellement et l'approuve ou la refuse sous 24 heures. Vous recevrez sa réponse par e-mail dans les deux cas.",
       errorGeneric: "Une erreur est survenue lors de l'envoi. Merci de réessayer, ou contactez-nous directement.",
       pickBothDates: "Merci de sélectionner une date d'arrivée et une date de départ sur le calendrier.",
       fillNameEmail: "Merci de renseigner votre nom et une adresse e-mail valide.",
-      rangeUnavailable: "Certaines nuits de cette période sont déjà réservées. Merci de choisir d'autres dates.",
+      rangeUnavailable: "Certaines nuits de cette période sont déjà réservées ou en demande. Merci de choisir d'autres dates.",
       pricePrompt: "Sélectionnez vos dates pour voir le prix.",
       priceError: "Impossible de charger le prix pour le moment — vous pouvez tout de même envoyer votre demande, nous confirmerons le montant exact.",
       rent: (n) => `Location (${n} nuit${n === 1 ? "" : "s"})`,
-      linen: "Linge de maison",
+      linen: (n, amt) => `Linge de maison (${n} pers. × ${amt})`,
+      linenPerWeek: (n, weeks, amt) => `Linge de maison (${n} pers. × ${weeks} semaine${weeks === 1 ? "" : "s"} × ${amt})`,
       cleaning: "Ménage de fin de séjour",
-      tax: (p) => `Taxe de séjour (${p}%)`,
+      tax: "Taxe de séjour",
       total: "Total (séjour)",
-      deposit: "Caution (remboursable, séparée)",
+      deposit: "Caution remboursable (séparée)",
       totalWithDeposit: "Débité via le lien de paiement",
+      discountWeek: "Réduction hebdomadaire",
+      discountMonth: "Réduction mensuelle",
+      rentAfterDiscount: "Location après réduction",
+      taxNoteFixed: (amt, adults, nights) => `${amt} par adulte et par nuit × ${adults} adulte${adults === 1 ? "" : "s"} × ${nights} nuit${nights === 1 ? "" : "s"}. Les enfants en sont exonérés.`,
+      taxNotePercent: (pct) => `${pct} % du tarif nocturne (après réduction) par adulte. Les enfants en sont exonérés.`,
+      depositNote: "Débitée en même temps que le total du séjour via le même lien de paiement sécurisé, puis remboursée par virement après le départ, une fois la maison vérifiée.",
+      minNights: (n) => `Cette période impose un séjour minimum de ${n} nuits.`,
+      rateMissing: "Certaines nuits sélectionnées ne sont pas encore ouvertes à la réservation. Essayez d'autres dates ou contactez-nous.",
+      capacityExceeded: (max) => `Ce séjour accepte au maximum ${max.maxAdults} adultes et ${max.maxChildren} enfants (${max.maxTotalGuests} personnes au total).`,
+      arrivalDayNotAllowed: "Les séjours ne peuvent pas commencer ce jour-là. Merci de choisir une autre date d'arrivée.",
+      prevMonth: "Mois précédent",
+      nextMonth: "Mois suivant",
+      dayBooked: "réservé",
+      dayRequested: "en demande, en attente d'approbation",
+      dayAvailable: "disponible",
+      dayPast: "date passée",
+      dayNoPrice: "pas encore ouvert à la réservation",
+      minStaySuffix: (n) => `, séjour minimum en arrivant ici : ${n} nuits`,
+      minStayNote: (n) => `Séjour minimum : ${n} nuits (certaines périodes exigent plus — le calendrier et le prix vous le préciseront).`,
     },
     nl: {
       selectRange: "Selecteer je aankomst- en vertrekdatum in de kalender",
@@ -58,26 +106,50 @@
       sending: "Bezig met versturen…",
       submit: "Boekingsaanvraag versturen",
       successTitle: "Aanvraag verstuurd!",
-      successBody: "Dank je — Aernoud controleert elke aanvraag persoonlijk en bevestigt binnen 24 uur. Je hoort per e-mail van hem.",
+      successBody: "Dank je — dit is een AANVRAAG, nog geen bevestigde boeking. Aernoud controleert 'm persoonlijk en keurt 'm binnen 24 uur goed of af. Je hoort in beide gevallen per e-mail van hem.",
       errorGeneric: "Er ging iets mis bij het versturen. Probeer het opnieuw, of neem rechtstreeks contact op.",
       pickBothDates: "Selecteer zowel een aankomst- als een vertrekdatum in de kalender.",
       fillNameEmail: "Vul je naam en een geldig e-mailadres in.",
-      rangeUnavailable: "Sommige nachten in die periode zijn al geboekt. Kies andere data.",
+      rangeUnavailable: "Sommige nachten in die periode zijn al geboekt of aangevraagd. Kies andere data.",
       pricePrompt: "Selecteer je data om de prijs te zien.",
       priceError: "Kon de prijs nu niet ophalen — je kunt je aanvraag gewoon versturen, we bevestigen het exacte bedrag.",
       rent: (n) => `Huur (${n} nacht${n === 1 ? "" : "en"})`,
-      linen: "Linnengoed",
+      linen: (n, amt) => `Linnengoed (${n} pers. × ${amt})`,
+      linenPerWeek: (n, weeks, amt) => `Linnengoed (${n} pers. × ${weeks} we${weeks === 1 ? "ek" : "ken"} × ${amt})`,
       cleaning: "Eindschoonmaak",
-      tax: (p) => `Toeristenbelasting (${p}%)`,
+      tax: "Toeristenbelasting",
       total: "Totaal (verblijf)",
-      deposit: "Waarborgsom (terugbetaalbaar, apart)",
+      deposit: "Terugbetaalbare borg (apart)",
       totalWithDeposit: "Afgerekend via betaallink",
+      discountWeek: "Weekkorting",
+      discountMonth: "Maandkorting",
+      rentAfterDiscount: "Huur na korting",
+      taxNoteFixed: (amt, adults, nights) => `${amt} per volwassene per nacht × ${adults} volwassene${adults === 1 ? "" : "n"} × ${nights} nacht${nights === 1 ? "" : "en"}. Kinderen zijn vrijgesteld.`,
+      taxNotePercent: (pct) => `${pct}% van de nachtprijs (na korting) per volwassene. Kinderen zijn vrijgesteld.`,
+      depositNote: "Wordt samen met het totaalbedrag afgerekend via dezelfde beveiligde betaallink, en na vertrek per bankoverschrijving terugbetaald zodra het huis is gecontroleerd.",
+      minNights: (n) => `Voor deze periode geldt een minimumverblijf van ${n} nachten.`,
+      rateMissing: "Sommige geselecteerde nachten zijn nog niet open voor boeking. Probeer andere data of neem contact op.",
+      capacityExceeded: (max) => `Dit verblijf biedt plaats aan maximaal ${max.maxAdults} volwassenen en ${max.maxChildren} kinderen (${max.maxTotalGuests} gasten totaal).`,
+      arrivalDayNotAllowed: "Een verblijf kan niet op die dag beginnen. Kies een andere aankomstdatum.",
+      prevMonth: "Vorige maand",
+      nextMonth: "Volgende maand",
+      dayBooked: "geboekt",
+      dayRequested: "aangevraagd, in afwachting van goedkeuring",
+      dayAvailable: "beschikbaar",
+      dayPast: "verstreken datum",
+      dayNoPrice: "nog niet open voor boeking",
+      minStaySuffix: (n) => `, minimumverblijf bij aankomst hier: ${n} nachten`,
+      minStayNote: (n) => `Minimumverblijf: ${n} nachten (voor sommige periodes geldt een langer minimum — de kalender en de prijs geven dit aan).`,
     },
   };
 
   let lang = "en";
   let busyNights = new Set();
   let pendingNights = new Set();
+  let noPriceNights = new Set();
+  let minNightsByDate = {};
+  let defaultMinNights = 1;
+  let capacity = { maxAdults: 8, maxChildren: 2, maxTotalGuests: 10 };
   let viewYear, viewMonth; // month is 0-indexed
   let selStart = null, selEnd = null; // "YYYY-MM-DD"
   let quoteRequestSeq = 0;
@@ -103,21 +175,101 @@
   }
 
   function rangeIsFree(startISO, endISO) {
-    return nightsInRange(startISO, endISO).every((n) => !busyNights.has(n));
+    return nightsInRange(startISO, endISO).every((n) => !busyNights.has(n) && !noPriceNights.has(n));
   }
 
-  function fmtMoney(amount, currency) {
+  function fmtMoneyCents(cents, currency) {
     try {
-      return new Intl.NumberFormat(lang === "en" ? "en-IE" : lang, { style: "currency", currency: currency || "EUR" }).format(amount);
+      return new Intl.NumberFormat(lang === "en" ? "en-IE" : lang, { style: "currency", currency: currency || "EUR" }).format((cents || 0) / 100);
     } catch (e) {
-      return `${currency || "EUR"} ${amount.toFixed(2)}`;
+      return `${currency || "EUR"} ${((cents || 0) / 100).toFixed(2)}`;
     }
   }
+
+  // ---- URL state (so language-switch links can carry it over) -----------
+
+  function currentStateParams() {
+    const p = new URLSearchParams();
+    if (selStart) p.set("checkin", selStart);
+    if (selEnd) p.set("checkout", selEnd);
+    const adultsEl = document.getElementById("adults");
+    const childrenEl = document.getElementById("children");
+    if (adultsEl) p.set("adults", adultsEl.value);
+    if (childrenEl) p.set("children", childrenEl.value);
+    return p;
+  }
+
+  function wireLanguageSwitchLinks() {
+    document.querySelectorAll(".lang-switch a").forEach((a) => {
+      if (a.classList.contains("current")) return;
+      a.addEventListener("click", (e) => {
+        const params = currentStateParams();
+        if ([...params.keys()].length === 0) return; // nothing to carry over
+        e.preventDefault();
+        const url = new URL(a.href, window.location.href);
+        params.forEach((v, k) => url.searchParams.set(k, v));
+        window.location.href = url.toString();
+      });
+    });
+  }
+
+  function restoreStateFromURL() {
+    const p = new URLSearchParams(window.location.search);
+    const ci = p.get("checkin"), co = p.get("checkout");
+    if (ci && /^\d{4}-\d{2}-\d{2}$/.test(ci)) selStart = ci;
+    if (co && /^\d{4}-\d{2}-\d{2}$/.test(co)) selEnd = co;
+    const a = p.get("adults"), c = p.get("children");
+    const adultsEl = document.getElementById("adults");
+    const childrenEl = document.getElementById("children");
+    if (a && adultsEl) adultsEl.value = a;
+    if (c && childrenEl) childrenEl.value = c;
+    if (selStart) {
+      const d = new Date(selStart + "T00:00:00Z");
+      viewYear = d.getUTCFullYear();
+      viewMonth = d.getUTCMonth();
+    }
+  }
+
+  // ---- Capacity-driven guest selects --------------------------------
+
+  function populateGuestSelects() {
+    const adultsEl = document.getElementById("adults");
+    const childrenEl = document.getElementById("children");
+    if (adultsEl) {
+      const prev = adultsEl.value;
+      adultsEl.innerHTML = "";
+      for (let i = 1; i <= capacity.maxAdults; i++) {
+        const opt = document.createElement("option");
+        opt.value = String(i);
+        opt.textContent = String(i);
+        if (String(i) === prev) opt.selected = true;
+        adultsEl.appendChild(opt);
+      }
+      if (!prev) {
+        const preferred = Math.min(4, capacity.maxAdults);
+        adultsEl.value = String(preferred);
+      }
+    }
+    if (childrenEl) {
+      const prev = childrenEl.value;
+      childrenEl.innerHTML = "";
+      for (let i = 0; i <= capacity.maxChildren; i++) {
+        const opt = document.createElement("option");
+        opt.value = String(i);
+        opt.textContent = String(i);
+        if (String(i) === prev) opt.selected = true;
+        childrenEl.appendChild(opt);
+      }
+    }
+  }
+
+  // ---- Calendar -----------------------------------------------------
 
   function renderCalendar() {
     const label = document.getElementById("ae-cal-month-label");
     const grid = document.getElementById("ae-cal-days");
     if (!label || !grid) return;
+    const t = STRINGS[lang];
 
     label.textContent = `${MONTH_NAMES[lang][viewMonth]} ${viewYear}`;
 
@@ -137,24 +289,44 @@
       const isPast = dateISO < today;
       const isBusy = busyNights.has(dateISO);
       const isPending = pendingNights.has(dateISO) && !busyNights.has(dateISO);
+      const isNoPrice = noPriceNights.has(dateISO) && !isBusy && !isPending;
       const inSelectedRange =
         selStart && selEnd && dateISO >= selStart && dateISO < selEnd;
       const isRangeEdge = dateISO === selStart || dateISO === selEnd;
 
       let style = "border:1px solid var(--line);cursor:pointer;";
+      let statusWord = t.dayAvailable;
       if (isPast) {
         style = "color: var(--text-dim); opacity: 0.35;";
+        statusWord = t.dayPast;
       } else if (isBusy) {
         style = "background: var(--bg-panel2); color: var(--text-dim); text-decoration: line-through;";
+        statusWord = t.dayBooked;
       } else if (isPending) {
         style = "background: var(--bg-panel2); color: var(--text-dim); border: 1px dashed var(--gold-soft);";
+        statusWord = t.dayRequested;
+      } else if (isNoPrice) {
+        style = "color: var(--text-dim); border: 1px dashed var(--line); opacity: 0.55;";
+        statusWord = t.dayNoPrice;
       } else if (inSelectedRange || isRangeEdge) {
         style = "background: var(--gold); color: #1a1408; font-weight: 600; cursor:pointer;";
       }
 
-      const clickable = !isPast && !isBusy;
-      html += `<div class="day" data-date="${dateISO}" style="${style}"${clickable ? ` onclick="AE_BOOKING.pickDate('${dateISO}')"` : ""}>${d}</div>`;
+      const clickable = !isPast && !isBusy && !isNoPrice;
+      const dateObj = new Date(dateISO + "T00:00:00Z");
+      const weekday = WEEKDAY_ABBR[lang][(dateObj.getUTCDay() + 6) % 7];
+      const edgeSuffix = isRangeEdge
+        ? dateISO === selStart
+          ? " — " + (lang === "nl" ? "aankomst" : lang === "fr" ? "arrivée" : "check-in")
+          : " — " + (lang === "nl" ? "vertrek" : lang === "fr" ? "départ" : "check-out")
+        : "";
+      const minOverride = minNightsByDate[dateISO];
+      const minSuffix = clickable && minOverride ? t.minStaySuffix(minOverride) : "";
+      const dayLabel = `${weekday} ${d} ${MONTH_NAMES[lang][viewMonth]}, ${statusWord}${edgeSuffix}${minSuffix}`;
+      const titleAttr = minSuffix ? ` title="${t.minStaySuffix(minOverride).replace(/^, /, "")}"` : "";
+      html += `<div class="day" role="gridcell" data-date="${dateISO}" style="${style}"${titleAttr} ${clickable ? `tabindex="0" onclick="AE_BOOKING.pickDate('${dateISO}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();AE_BOOKING.pickDate('${dateISO}')}"` : `tabindex="-1"`} aria-label="${dayLabel}" aria-disabled="${!clickable}">${d}</div>`;
     }
+    grid.setAttribute("role", "grid");
     grid.innerHTML = html;
 
     const checkinInput = document.getElementById("checkin");
@@ -164,13 +336,24 @@
 
     const nightsEl = document.getElementById("ae-cal-nights");
     if (nightsEl) {
+      nightsEl.setAttribute("aria-live", "polite");
       if (selStart && selEnd) {
         const n = nightsInRange(selStart, selEnd).length;
-        nightsEl.textContent = STRINGS[lang].nightsLabel(n);
+        nightsEl.textContent = t.nightsLabel(n);
       } else {
-        nightsEl.textContent = STRINGS[lang].selectRange;
+        nightsEl.textContent = t.selectRange;
       }
     }
+
+    const minStayNoteEl = document.getElementById("ae-cal-minstay-note");
+    if (minStayNoteEl) {
+      minStayNoteEl.textContent = defaultMinNights > 1 ? t.minStayNote(defaultMinNights) : "";
+    }
+
+    const prevBtn = document.querySelector('[onclick="AE_BOOKING.prevMonth()"]');
+    const nextBtn = document.querySelector('[onclick="AE_BOOKING.nextMonth()"]');
+    if (prevBtn) prevBtn.setAttribute("aria-label", t.prevMonth);
+    if (nextBtn) nextBtn.setAttribute("aria-label", t.nextMonth);
 
     refreshQuote();
   }
@@ -204,9 +387,14 @@
       const data = await res.json();
       busyNights = new Set(data.busyNights || []);
       pendingNights = new Set(data.pendingNights || []);
+      noPriceNights = new Set(data.noPriceNights || []);
+      minNightsByDate = data.minNightsByDate || {};
+      if (data.defaultMinNights) defaultMinNights = data.defaultMinNights;
+      if (data.capacity) capacity = data.capacity;
     } catch (e) {
       console.warn("Could not load live availability — calendar will show all dates as open.", e);
     }
+    populateGuestSelects();
     renderCalendar();
   }
 
@@ -240,7 +428,10 @@
       const res = await fetch(`/.netlify/functions/quote?${params.toString()}`);
       const data = await res.json();
       if (mySeq !== quoteRequestSeq) return; // a newer request has since started
-      if (!res.ok || !data.ok) throw new Error(data.error || "quote failed");
+      if (!res.ok || !data.ok) {
+        renderQuoteError(data);
+        return;
+      }
       renderPriceBreakdown(data.quote);
     } catch (e) {
       if (mySeq !== quoteRequestSeq) return;
@@ -248,6 +439,17 @@
     } finally {
       if (mySeq === quoteRequestSeq) breakdown.style.opacity = "1";
     }
+  }
+
+  function renderQuoteError(data) {
+    const breakdown = document.getElementById("ae-price-breakdown");
+    const t = STRINGS[lang];
+    let msg = t.priceError;
+    if (data && data.code === "MIN_NIGHTS_NOT_MET") msg = t.minNights(data.details.requiredNights);
+    else if (data && data.code === "RATE_MISSING") msg = t.rateMissing;
+    else if (data && data.code === "CAPACITY_EXCEEDED") msg = t.capacityExceeded(data.details);
+    else if (data && data.code === "ARRIVAL_DAY_NOT_ALLOWED") msg = t.arrivalDayNotAllowed;
+    breakdown.innerHTML = `<span style="color: #d98c8c;">${msg}</span>`;
   }
 
   function renderPriceBreakdown(q) {
@@ -259,18 +461,30 @@
         <span>${label}</span><span>${value}</span>
       </div>`;
 
-    let html = row(t.rent(q.nights), fmtMoney(q.rentalSubtotal, q.currency), { dim: true });
-    if (q.discountPercent) {
-      html += row(`${q.discountLabel} (-${q.discountPercent}%)`, `-${fmtMoney(q.discountAmount, q.currency)}`, { dim: true });
+    let html = row(t.rent(q.nights), fmtMoneyCents(q.rentalSubtotalCents, q.currency), { dim: true });
+    if (q.discountKind) {
+      const label = q.discountKind === "month" ? t.discountMonth : t.discountWeek;
+      html += row(`${label} (-${q.discountPercent}%)`, `-${fmtMoneyCents(q.discountAmountCents, q.currency)}`, { dim: true });
+      html += row(t.rentAfterDiscount, fmtMoneyCents(q.rentalAfterDiscountCents, q.currency), { dim: true });
     }
-    html += row(t.linen, fmtMoney(q.linenFee, q.currency), { dim: true });
-    html += row(t.cleaning, fmtMoney(q.cleaningFee, q.currency), { dim: true });
-    html += row(t.tax(q.touristTaxRatePercent), fmtMoney(q.touristTax, q.currency), { dim: true });
+    const totalGuests = q.adults + q.children;
+    const perPersonLinen = totalGuests > 0 ? q.linenFeeCents / (q.linenWeeks ? totalGuests * q.linenWeeks : totalGuests) : 0;
+    const linenLabel = q.linenWeeks
+      ? t.linenPerWeek(totalGuests, q.linenWeeks, fmtMoneyCents(perPersonLinen, q.currency))
+      : t.linen(totalGuests, fmtMoneyCents(perPersonLinen, q.currency));
+    html += row(linenLabel, fmtMoneyCents(q.linenFeeCents, q.currency), { dim: true });
+    html += row(t.cleaning, fmtMoneyCents(q.cleaningFeeCents, q.currency), { dim: true });
+    html += row(t.tax, fmtMoneyCents(q.touristTaxCents, q.currency), { dim: true });
+    const taxNote = q.touristTaxMode === "fixed_per_person_per_night"
+      ? t.taxNoteFixed(fmtMoneyCents(q.touristTaxFixedAmountCents, q.currency), q.adults, q.nights)
+      : t.taxNotePercent(q.touristTaxRatePercent);
+    html += `<div style="font-size: 11.5px; color: var(--text-dim); margin: -2px 0 4px; padding-left: 2px;">${taxNote}</div>`;
     html += `<div style="border-top: 1px solid var(--line); margin: 8px 0;"></div>`;
-    html += row(`<b>${t.total}</b>`, `<b>${fmtMoney(q.total, q.currency)}</b>`);
-    if (q.depositAmount) {
-      html += row(t.deposit, fmtMoney(q.depositAmount, q.currency), { dim: true });
-      html += row(`<i>${t.totalWithDeposit}</i>`, `<i>${fmtMoney(q.totalWithDeposit, q.currency)}</i>`, { dim: true });
+    html += row(`<b>${t.total}</b>`, `<b>${fmtMoneyCents(q.totalCents, q.currency)}</b>`);
+    if (q.depositCents) {
+      html += row(t.deposit, fmtMoneyCents(q.depositCents, q.currency), { dim: true });
+      html += `<div style="font-size: 11.5px; color: var(--text-dim); margin: -2px 0 4px; padding-left: 2px;">${t.depositNote}</div>`;
+      html += row(`<i>${t.totalWithDeposit}</i>`, `<i>${fmtMoneyCents(q.totalWithDepositCents, q.currency)}</i>`, { dim: true });
     }
     breakdown.innerHTML = html;
   }
@@ -320,6 +534,11 @@
       });
       const data = await res.json();
       if (!res.ok || !data.ok) {
+        if (data.code === "DATES_UNAVAILABLE") throw new Error(t.rangeUnavailable);
+        if (data.code === "MIN_NIGHTS_NOT_MET") throw new Error(t.minNights(data.details.requiredNights));
+        if (data.code === "RATE_MISSING") throw new Error(t.rateMissing);
+        if (data.code === "CAPACITY_EXCEEDED") throw new Error(t.capacityExceeded(data.details));
+        if (data.code === "ARRIVAL_DAY_NOT_ALLOWED") throw new Error(t.arrivalDayNotAllowed);
         throw new Error(data.error || t.errorGeneric);
       }
       showSuccess(t.successTitle, t.successBody);
@@ -340,6 +559,7 @@
     const el = document.getElementById("ae-booking-status");
     if (!el) return;
     el.textContent = msg;
+    el.setAttribute("role", isError ? "alert" : "status");
     el.style.color = isError ? "#d98c8c" : "var(--text-dim)";
   }
 
@@ -347,7 +567,7 @@
     const form = document.getElementById("ae-booking-form");
     if (!form) return;
     form.innerHTML = `
-      <div style="text-align:center; padding: 20px 0;">
+      <div style="text-align:center; padding: 20px 0;" role="status" aria-live="polite">
         <div style="font-family:'Cormorant Garamond', serif; font-size: 28px; color: var(--gold); margin-bottom: 14px;">${title}</div>
         <p style="font-size: 15px; line-height:1.7; color: var(--text-dim); margin:0;">${body}</p>
       </div>`;
@@ -359,6 +579,8 @@
       const t = new Date();
       viewYear = t.getFullYear();
       viewMonth = t.getMonth();
+      restoreStateFromURL();
+      wireLanguageSwitchLinks();
       loadAvailability();
 
       const adultsEl = document.getElementById("adults");

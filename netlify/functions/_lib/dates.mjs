@@ -41,3 +41,28 @@ export function isValidISODate(s) {
   // Reject values JS silently rolled over (e.g. 2026-13-40 -> some date in 2027).
   return toISODate(d) === s;
 }
+
+// Every calendar day from startISO up to and including endISO — used for
+// admin period edits, where both ends are dates the owner clicked (not a
+// checkin/checkout pair, where the checkout itself doesn't count as a night).
+export function datesInclusive(startISO, endISO) {
+  const dates = [];
+  let cur = parseISODate(startISO);
+  const end = parseISODate(endISO);
+  while (cur <= end) {
+    dates.push(toISODate(cur));
+    cur = new Date(cur.getTime() + 86400000);
+  }
+  return dates;
+}
+
+// ISO weekday: 1 = Monday ... 7 = Sunday (matches the calendar's own
+// Monday-first display and avoids the classic Sunday=0 ambiguity).
+export function isoWeekday(dateISO) {
+  const jsDay = parseISODate(dateISO).getUTCDay(); // 0=Sun..6=Sat
+  return jsDay === 0 ? 7 : jsDay;
+}
+
+export function hoursSince(isoTimestamp) {
+  return (Date.now() - new Date(isoTimestamp).getTime()) / 3600000;
+}

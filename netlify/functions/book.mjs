@@ -1,16 +1,21 @@
 // POST /.netlify/functions/book
 // Receives a booking request from the reserve-page form. Never auto-confirms:
-// it stores the request as "pending" and notifies the owner (email + WhatsApp),
-// who approves or declines via the signed links in that notification.
+// it stores the request as "pending" (requested — awaiting the owner's
+// personal approval) and notifies the owner (email + WhatsApp), who
+// approves or declines via the signed links in that notification.
 import { randomUUID } from "node:crypto";
-import { getAirbnbBusyNights, listBookings, saveBooking } from "./_lib/store.mjs";
-import { isValidISODate, nightsBetween, rangeOverlapsBusy } from "./_lib/dates.mjs";
+import {
+  getPricingSettings,
+  getAllRates,
+  saveBooking,
+  claimNights,
+  releaseNights,
+} from "./_lib/store.mjs";
+import { computeAvailability } from "./_lib/availability.mjs";
+import { isValidISODate, nightsBetween } from "./_lib/dates.mjs";
 import { signAction } from "./_lib/token.mjs";
 import { sendOwnerBookingAlert, sendGuestEmail } from "./_lib/notify.mjs";
-import { calculateQuote } from "./_lib/pricing.mjs";
-
-const MAX_ADULTS = 8;
-const MAX_CHILDREN = 2;
+import { calculateQuote, QuoteError } from "./_lib/pricing.mjs";
 
 export default async (req) => {
   if (req.method !== "POST") {
@@ -34,31 +39,46 @@ export default async (req) => {
   }
   const nAdults = Number(adults);
   const nChildren = Number(children) || 0;
-  if (!Number.isInteger(nAdults) || nAdults < 1 || nAdults > MAX_ADULTS || nChildren > MAX_CHILDREN) {
-    return json({ ok: false, error: "Invalid party size" }, 400);
-  }
   if (!name || !email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return json({ ok: false, error: "Please provide a valid name and email" }, 400);
   }
 
-  // Re-check availability server-side — never trust the client's calendar state.
-  const airbnbNights = await getAirbnbBusyNights();
-  const existing = await listBookings();
-  const busy = new Set(airbnbNights);
-  for (const b of existing) {
-    if (b.status === "confirmed" || b.status === "pending") {
-      for (const n of nightsBetween(b.checkin, b.checkout)) busy.add(n);
-    }
+  const [settings, rates] = await Promise.all([
+    getPricingSettings({ strong: true }),
+    getAllRates({ strong: true }),
+  ]);
+
+  // Price + business-rule validation (capacity, minimum stay, allowed
+  // arrival day, missing rates) — all in one place, see _lib/pricing.mjs.
+  let quote;
+  try {
+    quote = calculateQuote({ checkin, checkout, adults: nAdults, children: nChildren }, settings, rates);
+  } catch (e) {
+    if (e instanceof QuoteError) return json({ ok: false, code: e.code, details: e.details }, 409);
+    console.error("book.mjs: quote calculation failed:", e);
+    return json({ ok: false, error: "Could not calculate a price for those dates" }, 500);
   }
-  if (rangeOverlapsBusy(checkin, checkout, busy)) {
-    return json({ ok: false, error: "Those dates are no longer available. Please pick different dates." }, 409);
+
+  // Re-check availability server-side, with a strongly-consistent read —
+  // never trust the client's calendar state.
+  const { busyNights } = await computeAvailability(settings, { strong: true });
+  const nights = nightsBetween(checkin, checkout);
+  if (nights.some((n) => busyNights.has(n))) {
+    return json({ ok: false, code: "DATES_UNAVAILABLE" }, 409);
   }
 
   const id = randomUUID();
-  // Lock in the price at request time, using the exact same calculator the
-  // live quote and the eventual Stripe payment link use — so the amount
-  // never drifts between what the guest saw and what gets charged later.
-  const quote = calculateQuote(checkin, checkout, nAdults, nChildren);
+
+  // Best-effort claim on every night in the stay, to narrow (not, honestly,
+  // eliminate) the window where two simultaneous requests could both think
+  // the same nights are free — see store.claimNights() for exactly what
+  // this does and doesn't guarantee, and README "Availability & double
+  // bookings" for the real guarantee (enforced in respond.mjs at approval).
+  const claim = await claimNights(nights, id);
+  if (!claim.ok) {
+    return json({ ok: false, code: "DATES_UNAVAILABLE" }, 409);
+  }
+
   const booking = {
     id,
     checkin,
@@ -71,15 +91,27 @@ export default async (req) => {
     phone: phone ? String(phone).slice(0, 60) : "",
     message: message ? String(message).slice(0, 1000) : "",
     lang: ["en", "fr", "nl"].includes(lang) ? lang : "en",
+    // "pending" = requested, awaiting the owner's personal approval.
+    // "confirmed" = approved by the owner (a payment link has been sent).
+    // "paid" is a separate boolean on top of "confirmed" — see stripe-webhook.mjs.
+    // "declined" / "expired_unanswered" / "expired_unpaid" release the dates.
     status: "pending",
     createdAt: new Date().toISOString(),
     approveSig: signAction(id, "approve"),
     declineSig: signAction(id, "decline"),
+    // The full price breakdown AND the settings that produced it, frozen at
+    // request time. Never recomputed later — a subsequent price change on
+    // /admin must not silently change what this guest was already shown.
     quote,
     paid: false,
   };
 
-  await saveBooking(id, booking);
+  try {
+    await saveBooking(id, booking);
+  } catch (e) {
+    await releaseNights(nights, id);
+    throw e;
+  }
 
   const notifyResult = await sendOwnerBookingAlert(booking);
   const guestResult = await sendGuestEmail(booking, "received");

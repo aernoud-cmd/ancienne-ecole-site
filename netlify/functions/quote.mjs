@@ -1,13 +1,13 @@
 // GET /.netlify/functions/quote?checkin=YYYY-MM-DD&checkout=YYYY-MM-DD&adults=N&children=N
 // Public endpoint the reserve-page calendar calls to show a live, itemized
 // price breakdown as the guest picks dates — using the exact same
-// calculateQuote() that book.mjs and respond.mjs use, so the number shown
-// here always matches what's actually charged later.
-import { calculateQuote } from "./_lib/pricing.mjs";
+// calculateQuote() that book.mjs and respond.mjs use, against the exact
+// same live settings/rates an approval would charge, so the number shown
+// here always matches what's actually charged later (unless the owner
+// changes a price in between — see README "One central price calculation").
+import { calculateQuote, QuoteError } from "./_lib/pricing.mjs";
+import { getPricingSettings, getAllRates } from "./_lib/store.mjs";
 import { isValidISODate } from "./_lib/dates.mjs";
-
-const MAX_ADULTS = 8;
-const MAX_CHILDREN = 2;
 
 export default async (req) => {
   const url = new URL(req.url);
@@ -19,12 +19,19 @@ export default async (req) => {
   if (!isValidISODate(checkin) || !isValidISODate(checkout) || checkin >= checkout) {
     return json({ ok: false, error: "Invalid dates" }, 400);
   }
-  if (!Number.isInteger(adults) || adults < 1 || adults > MAX_ADULTS || children < 0 || children > MAX_CHILDREN) {
-    return json({ ok: false, error: "Invalid party size" }, 400);
-  }
 
-  const quote = calculateQuote(checkin, checkout, adults, children);
-  return json({ ok: true, quote });
+  const [settings, rates] = await Promise.all([getPricingSettings(), getAllRates()]);
+
+  try {
+    const quote = calculateQuote({ checkin, checkout, adults, children }, settings, rates);
+    return json({ ok: true, quote });
+  } catch (e) {
+    if (e instanceof QuoteError) {
+      return json({ ok: false, code: e.code, details: e.details }, 409);
+    }
+    console.error("quote.mjs:", e);
+    return json({ ok: false, error: "Could not calculate a price" }, 500);
+  }
 };
 
 function json(obj, status = 200) {
@@ -32,7 +39,8 @@ function json(obj, status = 200) {
     status,
     headers: {
       "content-type": "application/json",
-      "cache-control": "public, max-age=60",
+      // Short cache only — a price must reflect an admin change quickly.
+      "cache-control": "public, max-age=20",
     },
   });
 }

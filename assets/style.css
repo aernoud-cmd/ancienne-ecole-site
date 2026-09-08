@@ -71,6 +71,12 @@ h1, h2, h3 { font-family: 'Cormorant Garamond', serif; font-weight: 500; margin:
   .hero-badges { flex-wrap: wrap; }
   .amenities-grid, .grid-4 { grid-template-columns: 1fr !important; }
 }
+@media (max-width: 480px) {
+  /* The booking form's paired fields (check-in/out, adults/children,
+     name/email) go single-column on narrow phones so nothing gets
+     cramped or cut off. */
+  .form-grid-2 { grid-template-columns: 1fr !important; }
+}
 .nav-mobile { display: none; flex-direction: column; gap: 18px; padding: 20px 28px 28px; background: rgba(11,11,9,0.96); border-top: 1px solid var(--line); }
 .nav-mobile.open { display: flex; }
 
