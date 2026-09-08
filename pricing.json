@@ -1,0 +1,29 @@
+{
+  "_comment": "Bewerk deze bedragen naar de echte prijzen en push (git add -A && git commit -m 'prijzen bijwerken' && git push) — Netlify bouwt daarna automatisch opnieuw. Bedragen in hele euro's, percentages als getal (4 = 4%).",
+
+  "currency": "EUR",
+
+  "basePricePerNight": 180,
+
+  "_dateOverrides_comment": "Optioneel: specifieke periodes met een eigen nachtprijs (bijv. hoogseizoen). 'start' is de eerste nacht, 'end' is de laatste nacht (allebei inclusief) van die prijs. Periodes mogen elkaar niet overlappen. Voeg zoveel regels toe als je wilt, of laat leeg voor één vaste prijs het hele jaar.",
+  "dateOverrides": [
+    { "start": "2027-07-01", "end": "2027-08-31", "pricePerNight": 250, "label": "Hoogseizoen" }
+  ],
+
+  "_discount_comment": "Korting op de totale huursom (vóór schoonmaak/linnen/toeristenbelasting) vanaf een minimum aantal nachten. Maandkorting geldt in plaats van weekkorting als een boeking aan beide grenzen voldoet.",
+  "weekDiscountMinNights": 7,
+  "weekDiscountPercent": 10,
+  "monthDiscountMinNights": 28,
+  "monthDiscountPercent": 20,
+
+  "cleaningFee": 120,
+
+  "_linen_comment": "linenFeeMode: 'per_booking' = eenmalig per persoon voor de hele boeking. 'per_week' = per persoon voor elke (gedeelte van een) week van het verblijf.",
+  "linenFeePerPerson": 15,
+  "linenFeeMode": "per_booking",
+
+  "_touristTax_comment": "Toeristenbelasting: percentage × (nachtprijs van die nacht ÷ totaal aantal gasten) × aantal volwassenen, opgeteld over alle nachten. Kinderen tellen niet mee voor de belasting zelf, wel voor de verdeling van de nachtprijs per persoon.",
+  "touristTaxRatePercent": 4,
+
+  "depositAmount": 250
+}

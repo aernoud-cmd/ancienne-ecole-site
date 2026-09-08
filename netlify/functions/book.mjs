@@ -7,6 +7,7 @@ import { getAirbnbBusyNights, listBookings, saveBooking } from "./_lib/store.mjs
 import { isValidISODate, nightsBetween, rangeOverlapsBusy } from "./_lib/dates.mjs";
 import { signAction } from "./_lib/token.mjs";
 import { sendOwnerBookingAlert, sendGuestEmail } from "./_lib/notify.mjs";
+import { calculateQuote } from "./_lib/pricing.mjs";
 
 const MAX_ADULTS = 8;
 const MAX_CHILDREN = 2;
@@ -54,12 +55,15 @@ export default async (req) => {
   }
 
   const id = randomUUID();
-  const nights = nightsBetween(checkin, checkout).length;
+  // Lock in the price at request time, using the exact same calculator the
+  // live quote and the eventual Stripe payment link use — so the amount
+  // never drifts between what the guest saw and what gets charged later.
+  const quote = calculateQuote(checkin, checkout, nAdults, nChildren);
   const booking = {
     id,
     checkin,
     checkout,
-    nights,
+    nights: quote.nights,
     adults: nAdults,
     children: nChildren,
     name: String(name).slice(0, 200),
@@ -71,6 +75,8 @@ export default async (req) => {
     createdAt: new Date().toISOString(),
     approveSig: signAction(id, "approve"),
     declineSig: signAction(id, "decline"),
+    quote,
+    paid: false,
   };
 
   await saveBooking(id, booking);

@@ -5,6 +5,7 @@
 import { getBooking, saveBooking } from "./_lib/store.mjs";
 import { verifyAction } from "./_lib/token.mjs";
 import { sendGuestEmail } from "./_lib/notify.mjs";
+import { createBookingPaymentLink } from "./_lib/stripe.mjs";
 
 export default async (req) => {
   const url = new URL(req.url);
@@ -31,6 +32,21 @@ export default async (req) => {
 
   booking.status = action === "approve" ? "confirmed" : "declined";
   booking.respondedAt = new Date().toISOString();
+
+  let paymentLinkNote = "";
+  if (booking.status === "confirmed") {
+    try {
+      const link = await createBookingPaymentLink(booking);
+      booking.stripePaymentLinkUrl = link.url;
+      booking.stripePaymentLinkId = link.id;
+    } catch (e) {
+      // Don't block the confirmation on this — the owner can still send a
+      // payment link manually later. Surfaced on the confirmation page below.
+      booking.stripePaymentLinkError = e.message;
+      paymentLinkNote = ` (Payment link could not be created: ${e.message} — check STRIPE_SECRET_KEY in Netlify, then send the guest a link manually.)`;
+    }
+  }
+
   await saveBooking(id, booking);
 
   await sendGuestEmail(booking, booking.status === "confirmed" ? "confirmed" : "declined");
@@ -38,7 +54,7 @@ export default async (req) => {
   const title = booking.status === "confirmed" ? "Booking confirmed" : "Booking declined";
   const detail =
     booking.status === "confirmed"
-      ? `${booking.name}'s stay from ${booking.checkin} to ${booking.checkout} is now confirmed and blocked on the calendar. They've been emailed the good news.`
+      ? `${booking.name}'s stay from ${booking.checkin} to ${booking.checkout} is now confirmed and blocked on the calendar. They've been emailed the good news${booking.stripePaymentLinkUrl ? " along with their payment link" : ""}.${paymentLinkNote}`
       : `${booking.name}'s request for ${booking.checkin} to ${booking.checkout} has been declined and the dates are released. They've been emailed.`;
 
   return page(title, detail, false);

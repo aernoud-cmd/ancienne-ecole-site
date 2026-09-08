@@ -3,77 +3,26 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Reserve — L'Ancienne École, Troche</title>
-<meta name="description" content="Check availability and send a booking request for L'Ancienne École directly — no OTA fees, confirmed personally by the owner.">
-<link rel="canonical" href="https://ancienne-ecole.rent/reserve.html">
-<link rel="alternate" hreflang="en" href="https://ancienne-ecole.rent/reserve.html">
-<link rel="alternate" hreflang="fr" href="https://ancienne-ecole.rent/fr/reserve.html">
-<link rel="alternate" hreflang="nl" href="https://ancienne-ecole.rent/nl/reserve.html">
+<title>Book your stay — L'Ancienne École</title>
+<meta name="robots" content="noindex">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/style.css">
-<style>.btn-primary{width:100%;}</style>
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+  /* Embed-only overrides: no page chrome, just the booking module, sized to
+     sit inside an <iframe> on another site (e.g. the existing WordPress site). */
+  body { padding: 28px 20px 36px; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0; }
+  .btn-primary { width: 100%; }
+  @media (max-width: 860px) {
+    .booking-cols { flex-direction: column; }
+  }
+</style>
 </head>
 <body>
 
-<!-- TOP BANNER -->
-<div style="position: relative; width: 100%; height: 260px; overflow: hidden;">
-  <img src="assets/hero-house.jpg" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 65%;">
-  <div style="position: absolute; inset: 0; background: rgba(11,11,9,0.72);"></div>
-  <div class="wrap" style="position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; padding-top: 24px; padding-bottom: 24px;">
-    <img src="assets/logo-lockup.png" style="height: 52px; width: auto;">
-    <div class="nav-links">
-      <a href="index.html#house" style="color: var(--text);">The House</a>
-      <a href="reserve.html" style="color: var(--gold);">Reserve</a>
-      <a href="index.html#directions" style="color: var(--text);">Getting Here</a>
-      <div class="lang-switch">
-        <a href="reserve.html" class="current">EN</a>
-        <a href="fr/reserve.html">FR</a>
-        <a href="nl/reserve.html">NL</a>
-      </div>
-    </div>
-    <button class="nav-toggle" onclick="aeToggleNav()" aria-label="Menu">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ece6d8" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
-    </button>
-  </div>
-  <div id="ae-nav-mobile" class="nav-mobile" style="position: absolute; top: 76px; left: 0; right: 0;">
-    <a href="index.html#house">The House</a>
-    <a href="reserve.html">Reserve</a>
-    <a href="index.html#directions">Getting Here</a>
-    <div class="lang-switch" style="border-left:none;padding-left:0;">
-      <a href="reserve.html" class="current">EN</a>
-      <a href="fr/reserve.html">FR</a>
-      <a href="nl/reserve.html">NL</a>
-    </div>
-  </div>
-  <div class="wrap" style="position: absolute; left: 0; right: 0; bottom: 40px;">
-    <div class="kicker" style="margin-bottom: 12px;">Reserve your stay</div>
-    <h1 style="font-size: 42px; color: var(--text);">Availability &amp; booking</h1>
-  </div>
-</div>
-
-<!-- TRUST STRIP -->
-<div style="width: 100%; background: var(--bg-panel); border-bottom: 1px solid var(--line);">
-  <div class="wrap" style="padding: 22px 0; display: flex; gap: 48px; flex-wrap: wrap;">
-    <div style="display: flex; align-items: center; gap: 10px;">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c9a769" stroke-width="2"><path d="M17 3a2.83 2.83 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-      <span style="font-size: 13px; color: var(--text-dim);">Checked against our Airbnb calendar</span>
-    </div>
-    <div style="display: flex; align-items: center; gap: 10px;">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c9a769" stroke-width="2"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="8" r="5"/></svg>
-      <span style="font-size: 13px; color: var(--text-dim);">Every request confirmed by Aernoud, personally</span>
-    </div>
-    <div style="display: flex; align-items: center; gap: 10px;">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c9a769" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
-      <span style="font-size: 13px; color: var(--text-dim);">No OTA booking fees</span>
-    </div>
-  </div>
-</div>
-
-<!-- CALENDAR + FORM -->
-<div class="wrap booking-cols" style="padding: 90px 0; display: flex; gap: 72px; align-items: flex-start;">
-
+<div class="wrap booking-cols" style="display: flex; gap: 56px; align-items: flex-start; flex-wrap: wrap;">
   <div style="flex: 1.3; min-width: 320px;">
     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px;">
       <button type="button" class="btn-ghost" onclick="AE_BOOKING.prevMonth()" style="background:none;border:1px solid var(--line);color:var(--text);padding:8px 12px;border-radius:2px;cursor:pointer;">&larr;</button>
@@ -162,49 +111,25 @@
   </form>
 </div>
 
-<!-- HOW IT WORKS -->
-<div class="wrap grid-3" style="padding: 0 0 130px;">
-  <div>
-    <div style="font-family:'Cormorant Garamond', serif; font-size: 34px; color: var(--gold); margin-bottom: 14px;">01</div>
-    <div style="font-size: 18px; margin-bottom: 10px;">Check price &amp; availability</div>
-    <div style="font-size: 14px; line-height: 1.7; color: var(--text-dim);">The calendar above is checked against Airbnb, with a short buffer around existing bookings so nothing is double-booked.</div>
-  </div>
-  <div>
-    <div style="font-family:'Cormorant Garamond', serif; font-size: 34px; color: var(--gold); margin-bottom: 14px;">02</div>
-    <div style="font-size: 18px; margin-bottom: 10px;">Send your request</div>
-    <div style="font-size: 14px; line-height: 1.7; color: var(--text-dim);">Fill in your dates and party size and send it through &mdash; no payment yet, just a request.</div>
-  </div>
-  <div>
-    <div style="font-family:'Cormorant Garamond', serif; font-size: 34px; color: var(--gold); margin-bottom: 14px;">03</div>
-    <div style="font-size: 18px; margin-bottom: 10px;">We confirm, personally</div>
-    <div style="font-size: 14px; line-height: 1.7; color: var(--text-dim);">Aernoud is notified the moment your request comes in and reviews it himself &mdash; you&rsquo;ll hear back within 24 hours with confirmation and a secure payment link.</div>
-  </div>
-</div>
-
-<!-- FOOTER -->
-<div class="wrap footer-row" style="padding: 60px 0 60px; display: flex; justify-content: space-between; align-items: flex-start; border-top: 1px solid var(--line);">
-  <div style="display: flex; flex-direction: column; gap: 14px;">
-    <img src="assets/logo-lockup.png" style="height: 58px; width: auto;">
-    <div style="font-size: 13.5px; color: var(--text-dim);">Corr&egrave;ze, Limousin &middot; France</div>
-  </div>
-  <div class="footer-links" style="display: flex; gap: 90px; font-size: 13.5px;">
-    <div style="display: flex; flex-direction: column; gap: 12px;">
-      <div class="kicker" style="margin-bottom: 4px;">Contact</div>
-      <span style="color: var(--text-dim);">[Phone / WhatsApp]</span>
-      <span style="color: var(--text-dim);">[Email]</span>
-      <a href="#">Facebook</a>
-    </div>
-    <div style="display: flex; flex-direction: column; gap: 12px;">
-      <div class="kicker" style="margin-bottom: 4px;">Language</div>
-      <a href="reserve.html" style="color: var(--text);">English</a>
-      <a href="fr/reserve.html">Fran&ccedil;ais</a>
-      <a href="nl/reserve.html">Nederlands</a>
-    </div>
-  </div>
-</div>
-
-<script src="assets/app.js"></script>
-<script src="assets/booking.js"></script>
+<script src="../assets/app.js"></script>
+<script src="../assets/booking.js"></script>
 <script>AE_BOOKING.init('en');</script>
+<script>
+  // Tells the parent page how tall we are, so a listening embed script (see
+  // README) can resize the <iframe> and avoid a double scrollbar. Safe to
+  // ignore if the parent isn't listening — the iframe just keeps a fixed
+  // height set in its own HTML instead (also documented in the README).
+  (function () {
+    function reportHeight() {
+      var h = document.documentElement.scrollHeight;
+      window.parent.postMessage({ aeAncienneEcoleEmbedHeight: h }, "*");
+    }
+    new MutationObserver(reportHeight).observe(document.body, { childList: true, subtree: true, attributes: true });
+    window.addEventListener("load", reportHeight);
+    window.addEventListener("resize", reportHeight);
+    setTimeout(reportHeight, 300);
+    setTimeout(reportHeight, 1000);
+  })();
+</script>
 </body>
 </html>

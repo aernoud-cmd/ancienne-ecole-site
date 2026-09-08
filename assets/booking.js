@@ -1,5 +1,8 @@
-// Drives the reserve-page calendar + booking form. Talks to the Netlify
-// Functions backend (availability / book) — see netlify/functions/.
+// Drives the reserve-page calendar, live price breakdown, and booking form.
+// Talks to the Netlify Functions backend (availability / quote / book) —
+// see netlify/functions/. The price shown here always comes from the same
+// calculateQuote() the backend uses (netlify/functions/_lib/pricing.mjs), so
+// it never drifts from what's actually charged after approval.
 (function () {
   const MONTH_NAMES = {
     en: ["January","February","March","April","May","June","July","August","September","October","November","December"],
@@ -10,7 +13,6 @@
     en: {
       selectRange: "Select your check-in and check-out dates on the calendar",
       nightsLabel: (n) => `${n} night${n === 1 ? "" : "s"} selected`,
-      priceNote: "We'll confirm the exact price, personally, when we confirm your dates.",
       sending: "Sending…",
       submit: "Send booking request",
       successTitle: "Request sent!",
@@ -19,11 +21,19 @@
       pickBothDates: "Please select both a check-in and a check-out date on the calendar.",
       fillNameEmail: "Please fill in your name and a valid email address.",
       rangeUnavailable: "Some of the nights in that range are already booked. Please pick different dates.",
+      pricePrompt: "Select your dates to see the price.",
+      priceError: "Couldn't load the price just now — you can still send your request; we'll confirm the exact amount.",
+      rent: (n) => `${n} night${n === 1 ? "" : "s"} rent`,
+      linen: "Linen",
+      cleaning: "Final cleaning",
+      tax: (p) => `Tourist tax (${p}%)`,
+      total: "Total (stay)",
+      deposit: "Security deposit (refundable, separate)",
+      totalWithDeposit: "Charged via payment link",
     },
     fr: {
       selectRange: "Sélectionnez vos dates d'arrivée et de départ sur le calendrier",
       nightsLabel: (n) => `${n} nuit${n === 1 ? "" : "s"} sélectionnée${n === 1 ? "" : "s"}`,
-      priceNote: "Nous vous confirmerons le prix exact, personnellement, en validant vos dates.",
       sending: "Envoi…",
       submit: "Envoyer la demande de réservation",
       successTitle: "Demande envoyée !",
@@ -32,11 +42,19 @@
       pickBothDates: "Merci de sélectionner une date d'arrivée et une date de départ sur le calendrier.",
       fillNameEmail: "Merci de renseigner votre nom et une adresse e-mail valide.",
       rangeUnavailable: "Certaines nuits de cette période sont déjà réservées. Merci de choisir d'autres dates.",
+      pricePrompt: "Sélectionnez vos dates pour voir le prix.",
+      priceError: "Impossible de charger le prix pour le moment — vous pouvez tout de même envoyer votre demande, nous confirmerons le montant exact.",
+      rent: (n) => `Location (${n} nuit${n === 1 ? "" : "s"})`,
+      linen: "Linge de maison",
+      cleaning: "Ménage de fin de séjour",
+      tax: (p) => `Taxe de séjour (${p}%)`,
+      total: "Total (séjour)",
+      deposit: "Caution (remboursable, séparée)",
+      totalWithDeposit: "Débité via le lien de paiement",
     },
     nl: {
       selectRange: "Selecteer je aankomst- en vertrekdatum in de kalender",
       nightsLabel: (n) => `${n} nacht${n === 1 ? "" : "en"} geselecteerd`,
-      priceNote: "We bevestigen de exacte prijs persoonlijk zodra we je data bevestigen.",
       sending: "Bezig met versturen…",
       submit: "Boekingsaanvraag versturen",
       successTitle: "Aanvraag verstuurd!",
@@ -45,6 +63,15 @@
       pickBothDates: "Selecteer zowel een aankomst- als een vertrekdatum in de kalender.",
       fillNameEmail: "Vul je naam en een geldig e-mailadres in.",
       rangeUnavailable: "Sommige nachten in die periode zijn al geboekt. Kies andere data.",
+      pricePrompt: "Selecteer je data om de prijs te zien.",
+      priceError: "Kon de prijs nu niet ophalen — je kunt je aanvraag gewoon versturen, we bevestigen het exacte bedrag.",
+      rent: (n) => `Huur (${n} nacht${n === 1 ? "" : "en"})`,
+      linen: "Linnengoed",
+      cleaning: "Eindschoonmaak",
+      tax: (p) => `Toeristenbelasting (${p}%)`,
+      total: "Totaal (verblijf)",
+      deposit: "Waarborgsom (terugbetaalbaar, apart)",
+      totalWithDeposit: "Afgerekend via betaallink",
     },
   };
 
@@ -53,6 +80,7 @@
   let pendingNights = new Set();
   let viewYear, viewMonth; // month is 0-indexed
   let selStart = null, selEnd = null; // "YYYY-MM-DD"
+  let quoteRequestSeq = 0;
 
   function iso(y, m, d) {
     return `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
@@ -76,6 +104,14 @@
 
   function rangeIsFree(startISO, endISO) {
     return nightsInRange(startISO, endISO).every((n) => !busyNights.has(n));
+  }
+
+  function fmtMoney(amount, currency) {
+    try {
+      return new Intl.NumberFormat(lang === "en" ? "en-IE" : lang, { style: "currency", currency: currency || "EUR" }).format(amount);
+    } catch (e) {
+      return `${currency || "EUR"} ${amount.toFixed(2)}`;
+    }
   }
 
   function renderCalendar() {
@@ -135,6 +171,8 @@
         nightsEl.textContent = STRINGS[lang].selectRange;
       }
     }
+
+    refreshQuote();
   }
 
   function pickDate(dateISO) {
@@ -172,10 +210,74 @@
     renderCalendar();
   }
 
+  function getPartySize() {
+    const adultsEl = document.getElementById("adults");
+    const childrenEl = document.getElementById("children");
+    return {
+      adults: adultsEl ? Number(adultsEl.value) : 1,
+      children: childrenEl ? Number(childrenEl.value) : 0,
+    };
+  }
+
+  // Fetches the live price whenever dates or party size are complete, using
+  // the same calculateQuote() as the backend. A sequence number guards
+  // against an older, slower request overwriting a newer one's result.
+  async function refreshQuote() {
+    const breakdown = document.getElementById("ae-price-breakdown");
+    if (!breakdown) return;
+
+    if (!selStart || !selEnd) {
+      breakdown.innerHTML = `<span style="color: var(--text-dim);">${STRINGS[lang].pricePrompt}</span>`;
+      return;
+    }
+
+    const { adults, children } = getPartySize();
+    const mySeq = ++quoteRequestSeq;
+    breakdown.style.opacity = "0.5";
+
+    try {
+      const params = new URLSearchParams({ checkin: selStart, checkout: selEnd, adults, children });
+      const res = await fetch(`/.netlify/functions/quote?${params.toString()}`);
+      const data = await res.json();
+      if (mySeq !== quoteRequestSeq) return; // a newer request has since started
+      if (!res.ok || !data.ok) throw new Error(data.error || "quote failed");
+      renderPriceBreakdown(data.quote);
+    } catch (e) {
+      if (mySeq !== quoteRequestSeq) return;
+      breakdown.innerHTML = `<span style="color: var(--text-dim);">${STRINGS[lang].priceError}</span>`;
+    } finally {
+      if (mySeq === quoteRequestSeq) breakdown.style.opacity = "1";
+    }
+  }
+
+  function renderPriceBreakdown(q) {
+    const breakdown = document.getElementById("ae-price-breakdown");
+    if (!breakdown) return;
+    const t = STRINGS[lang];
+    const row = (label, value, opts) => `
+      <div style="display: flex; justify-content: space-between; font-size: 13.5px; color: ${opts && opts.dim ? "var(--text-dim)" : "var(--text)"}; padding: 3px 0;">
+        <span>${label}</span><span>${value}</span>
+      </div>`;
+
+    let html = row(t.rent(q.nights), fmtMoney(q.rentalSubtotal, q.currency), { dim: true });
+    if (q.discountPercent) {
+      html += row(`${q.discountLabel} (-${q.discountPercent}%)`, `-${fmtMoney(q.discountAmount, q.currency)}`, { dim: true });
+    }
+    html += row(t.linen, fmtMoney(q.linenFee, q.currency), { dim: true });
+    html += row(t.cleaning, fmtMoney(q.cleaningFee, q.currency), { dim: true });
+    html += row(t.tax(q.touristTaxRatePercent), fmtMoney(q.touristTax, q.currency), { dim: true });
+    html += `<div style="border-top: 1px solid var(--line); margin: 8px 0;"></div>`;
+    html += row(`<b>${t.total}</b>`, `<b>${fmtMoney(q.total, q.currency)}</b>`);
+    if (q.depositAmount) {
+      html += row(t.deposit, fmtMoney(q.depositAmount, q.currency), { dim: true });
+      html += row(`<i>${t.totalWithDeposit}</i>`, `<i>${fmtMoney(q.totalWithDeposit, q.currency)}</i>`, { dim: true });
+    }
+    breakdown.innerHTML = html;
+  }
+
   async function submitBooking(evt) {
     evt.preventDefault();
     const t = STRINGS[lang];
-    const statusEl = document.getElementById("ae-booking-status");
     const btn = document.getElementById("ae-booking-submit");
 
     if (!selStart || !selEnd) {
@@ -193,11 +295,12 @@
       return false;
     }
 
+    const { adults, children } = getPartySize();
     const payload = {
       checkin: selStart,
       checkout: selEnd,
-      adults: Number(document.getElementById("adults").value),
-      children: Number(document.getElementById("children").value),
+      adults,
+      children,
       name,
       email,
       phone: document.getElementById("guest-phone").value.trim(),
@@ -257,6 +360,11 @@
       viewYear = t.getFullYear();
       viewMonth = t.getMonth();
       loadAvailability();
+
+      const adultsEl = document.getElementById("adults");
+      const childrenEl = document.getElementById("children");
+      if (adultsEl) adultsEl.addEventListener("change", refreshQuote);
+      if (childrenEl) childrenEl.addEventListener("change", refreshQuote);
     },
     pickDate,
     prevMonth: () => changeMonth(-1),
