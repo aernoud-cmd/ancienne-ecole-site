@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Réserver — L'Ancienne École, Troche</title>
+<meta name="description" content="Vérifiez les disponibilités et envoyez une demande de réservation directement pour L'Ancienne École — sans frais de plateforme, confirmée personnellement par le propriétaire.">
+<link rel="canonical" href="https://ancienne-ecole.rent/fr/reserve.html">
+<link rel="alternate" hreflang="en" href="https://ancienne-ecole.rent/reserve.html">
+<link rel="alternate" hreflang="fr" href="https://ancienne-ecole.rent/fr/reserve.html">
+<link rel="alternate" hreflang="nl" href="https://ancienne-ecole.rent/nl/reserve.html">
+<link rel="alternate" hreflang="x-default" href="https://ancienne-ecole.rent/reserve.html">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/style.css">
+<style>.btn-primary{width:100%;}</style>
+</head>
+<body>
+
+<!-- TOP BANNER -->
+<div style="position: relative; width: 100%; height: 260px; overflow: hidden;">
+  <img src="../assets/hero-house.jpg" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 65%;">
+  <div style="position: absolute; inset: 0; background: rgba(11,11,9,0.72);"></div>
+  <div class="wrap" style="position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; padding-top: 24px; padding-bottom: 24px;">
+    <img src="../assets/logo-lockup.png" style="height: 52px; width: auto;">
+    <div class="nav-links">
+      <a href="index.html#house" style="color: var(--text);">La Maison</a>
+      <a href="reserve.html" style="color: var(--gold);">Réserver</a>
+      <a href="index.html#directions" style="color: var(--text);">Y Aller</a>
+      <div class="lang-switch">
+        <a href="../reserve.html">EN</a>
+        <a href="reserve.html" class="current">FR</a>
+        <a href="../nl/reserve.html">NL</a>
+      </div>
+    </div>
+    <button class="nav-toggle" onclick="aeToggleNav()" aria-label="Menu">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ece6d8" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
+  </div>
+  <div id="ae-nav-mobile" class="nav-mobile" style="position: absolute; top: 76px; left: 0; right: 0;">
+    <a href="index.html#house">La Maison</a>
+    <a href="reserve.html">Réserver</a>
+    <a href="index.html#directions">Y Aller</a>
+    <div class="lang-switch" style="border-left:none;padding-left:0;">
+      <a href="../reserve.html">EN</a>
+      <a href="reserve.html" class="current">FR</a>
+      <a href="../nl/reserve.html">NL</a>
+    </div>
+  </div>
+  <div class="wrap" style="position: absolute; left: 0; right: 0; bottom: 40px;">
+    <div class="kicker" style="margin-bottom: 12px;">Réservez votre séjour</div>
+    <h1 style="font-size: 42px; color: var(--text);">Disponibilités &amp; réservation</h1>
+  </div>
+</div>
+
+<!-- TRUST STRIP -->
+<div style="width: 100%; background: var(--bg-panel); border-bottom: 1px solid var(--line);">
+  <div class="wrap" style="padding: 22px 0; display: flex; gap: 48px; flex-wrap: wrap;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c9a769" stroke-width="2"><path d="M17 3a2.83 2.83 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+      <span style="font-size: 13px; color: var(--text-dim);">Vérifié avec notre calendrier Airbnb</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c9a769" stroke-width="2"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="8" r="5"/></svg>
+      <span style="font-size: 13px; color: var(--text-dim);">Chaque demande confirmée par Aernoud, personnellement</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c9a769" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
+      <span style="font-size: 13px; color: var(--text-dim);">Aucun frais de plateforme</span>
+    </div>
+  </div>
+</div>
+
+<!-- CALENDAR + FORM -->
+<div class="wrap booking-cols" style="padding: 90px 0; display: flex; gap: 72px; align-items: flex-start;">
+
+  <div style="flex: 1.3; min-width: 320px;">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px;">
+      <button type="button" class="btn-ghost" onclick="AE_BOOKING.prevMonth()" style="background:none;border:1px solid var(--line);color:var(--text);padding:8px 12px;border-radius:2px;cursor:pointer;">&larr;</button>
+      <h2 id="ae-cal-month-label" style="font-size: 26px;">&nbsp;</h2>
+      <button type="button" class="btn-ghost" onclick="AE_BOOKING.nextMonth()" style="background:none;border:1px solid var(--line);color:var(--text);padding:8px 12px;border-radius:2px;cursor:pointer;">&rarr;</button>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 10px;">
+      <div style="text-align:center; font-size:11px; letter-spacing:1px; color: var(--text-dim);">LUN</div>
+      <div style="text-align:center; font-size:11px; letter-spacing:1px; color: var(--text-dim);">MAR</div>
+      <div style="text-align:center; font-size:11px; letter-spacing:1px; color: var(--text-dim);">MER</div>
+      <div style="text-align:center; font-size:11px; letter-spacing:1px; color: var(--text-dim);">JEU</div>
+      <div style="text-align:center; font-size:11px; letter-spacing:1px; color: var(--text-dim);">VEN</div>
+      <div style="text-align:center; font-size:11px; letter-spacing:1px; color: var(--text-dim);">SAM</div>
+      <div style="text-align:center; font-size:11px; letter-spacing:1px; color: var(--text-dim);">DIM</div>
+    </div>
+
+    <div id="ae-cal-days" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px;">
+    </div>
+
+    <div style="display: flex; gap: 24px; margin-top: 28px; flex-wrap: wrap;">
+      <div style="display:flex; align-items:center; gap: 8px;"><span style="width:13px;height:13px;background:var(--gold);border-radius:2px;display:inline-block;"></span><span style="font-size: 13px; color: var(--text-dim);">Vos dates sélectionnées</span></div>
+      <div style="display:flex; align-items:center; gap: 8px;"><span style="width:13px;height:13px;background:var(--bg-panel2);border-radius:2px;display:inline-block;"></span><span style="font-size: 13px; color: var(--text-dim);">Réservé (selon notre calendrier Airbnb)</span></div>
+      <div style="display:flex; align-items:center; gap: 8px;"><span style="width:13px;height:13px;border:1px dashed var(--gold-soft);border-radius:2px;display:inline-block;"></span><span style="font-size: 13px; color: var(--text-dim);">Demandé (en attente de confirmation)</span></div>
+      <div style="display:flex; align-items:center; gap: 8px;"><span style="width:13px;height:13px;border:1px solid var(--line);border-radius:2px;display:inline-block;"></span><span style="font-size: 13px; color: var(--text-dim);">Disponible</span></div>
+    </div>
+    <div id="ae-cal-nights" style="margin-top: 14px; font-size: 13px; color: var(--text-dim);">&nbsp;</div>
+  </div>
+
+  <form id="ae-booking-form" style="flex: 1; min-width: 300px; background: var(--bg-panel); border: 1px solid var(--line); padding: 40px; border-radius: 2px;" onsubmit="return AE_BOOKING.submit(event)">
+    <h3 style="font-size: 24px; margin-bottom: 28px;">Votre séjour</h3>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+      <div class="field">
+        <label for="checkin">Arrivée</label>
+        <input class="input" type="text" id="checkin" name="checkin" readonly style="font-family: 'Work Sans', sans-serif;">
+      </div>
+      <div class="field">
+        <label for="checkout">Départ</label>
+        <input class="input" type="text" id="checkout" name="checkout" readonly style="font-family: 'Work Sans', sans-serif;">
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+      <div class="field">
+        <label for="adults">Adultes</label>
+        <select class="input" id="adults" name="adults" style="font-family: 'Work Sans', sans-serif;">
+          <option>1</option><option>2</option><option>3</option><option selected>4</option><option>5</option><option>6</option><option>7</option><option>8</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="children">Enfants</label>
+        <select class="input" id="children" name="children" style="font-family: 'Work Sans', sans-serif;">
+          <option selected>0</option><option>1</option><option>2</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+      <div class="field">
+        <label for="guest-name">Nom complet</label>
+        <input class="input" type="text" id="guest-name" name="guest-name" required style="font-family: 'Work Sans', sans-serif;">
+      </div>
+      <div class="field">
+        <label for="guest-email">E-mail</label>
+        <input class="input" type="email" id="guest-email" name="guest-email" required style="font-family: 'Work Sans', sans-serif;">
+      </div>
+    </div>
+
+    <div class="field" style="margin-bottom: 16px;">
+      <label for="guest-phone">Téléphone / WhatsApp (facultatif)</label>
+      <input class="input" type="tel" id="guest-phone" name="guest-phone" style="font-family: 'Work Sans', sans-serif;">
+    </div>
+
+    <div class="field" style="margin-bottom: 22px;">
+      <label for="guest-message">Quelque chose à nous signaler ? (facultatif)</label>
+      <textarea class="input" id="guest-message" name="guest-message" rows="3" style="font-family: 'Work Sans', sans-serif; resize: vertical;"></textarea>
+    </div>
+
+    <div style="padding: 18px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin-bottom: 22px; font-size: 13.5px; color: var(--text-dim); line-height: 1.6;">
+      Nous vous confirmerons le prix exact, personnellement, en validant vos dates.
+    </div>
+
+    <button class="btn-primary" type="submit" id="ae-booking-submit">Envoyer la demande de réservation</button>
+    <div id="ae-booking-status" style="text-align: center; font-size: 13px; margin-top: 14px; min-height: 18px;"></div>
+    <div style="text-align: center; font-size: 12px; color: var(--text-dim); margin-top: 10px;">Aucun paiement maintenant &mdash; Aernoud examine chaque demande personnellement et confirme sous 24h, avec un lien de paiement sécurisé.</div>
+  </form>
+</div>
+
+<!-- HOW IT WORKS -->
+<div class="wrap grid-3" style="padding: 0 0 130px;">
+  <div>
+    <div style="font-family:'Cormorant Garamond', serif; font-size: 34px; color: var(--gold); margin-bottom: 14px;">01</div>
+    <div style="font-size: 18px; margin-bottom: 10px;">Vérifiez le prix &amp; les disponibilités</div>
+    <div style="font-size: 14px; line-height: 1.7; color: var(--text-dim);">Le calendrier ci-dessus est vérifié par rapport à Airbnb, avec une courte marge autour des réservations existantes pour éviter tout chevauchement.</div>
+  </div>
+  <div>
+    <div style="font-family:'Cormorant Garamond', serif; font-size: 34px; color: var(--gold); margin-bottom: 14px;">02</div>
+    <div style="font-size: 18px; margin-bottom: 10px;">Envoyez votre demande</div>
+    <div style="font-size: 14px; line-height: 1.7; color: var(--text-dim);">Indiquez vos dates et le nombre de personnes, puis envoyez &mdash; aucun paiement pour l'instant, juste une demande.</div>
+  </div>
+  <div>
+    <div style="font-family:'Cormorant Garamond', serif; font-size: 34px; color: var(--gold); margin-bottom: 14px;">03</div>
+    <div style="font-size: 18px; margin-bottom: 10px;">Nous confirmons, personnellement</div>
+    <div style="font-size: 14px; line-height: 1.7; color: var(--text-dim);">Aernoud est prévenu dès réception de votre demande et l'examine lui-même &mdash; vous aurez une réponse sous 24 heures, avec la confirmation et un lien de paiement sécurisé.</div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="wrap footer-row" style="padding: 60px 0 60px; display: flex; justify-content: space-between; align-items: flex-start; border-top: 1px solid var(--line);">
+  <div style="display: flex; flex-direction: column; gap: 14px;">
+    <img src="../assets/logo-lockup.png" style="height: 58px; width: auto;">
+    <div style="font-size: 13.5px; color: var(--text-dim);">Corr&egrave;ze, Limousin &middot; France</div>
+  </div>
+  <div class="footer-links" style="display: flex; gap: 90px; font-size: 13.5px;">
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <div class="kicker" style="margin-bottom: 4px;">Contact</div>
+      <span style="color: var(--text-dim);">[Téléphone / WhatsApp]</span>
+      <span style="color: var(--text-dim);">[Email]</span>
+      <a href="#">Facebook</a>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <div class="kicker" style="margin-bottom: 4px;">Langue</div>
+      <a href="../reserve.html">English</a>
+      <a href="reserve.html" style="color: var(--text);">Fran&ccedil;ais</a>
+      <a href="../nl/reserve.html">Nederlands</a>
+    </div>
+  </div>
+</div>
+
+<script src="../assets/app.js"></script>
+<script src="../assets/booking.js"></script>
+<script>AE_BOOKING.init('fr');</script>
+</body>
+</html>
