@@ -59,10 +59,22 @@ export default async (req) => {
       // Surfaced as a small badge on /admin so it's obvious, without a hard
       // refresh, which deploy is actually live — see netlify.toml/README
       // "Cache busting". Netlify sets these automatically at build/runtime;
-      // both are null when running `netlify dev` locally.
+      // both are null when running `netlify dev` locally. Netlify Functions
+      // v2 (this file uses the v2 `export default` signature) don't reliably
+      // forward deploy-metadata env vars onto Node's plain `process.env` the
+      // way v1 did — the documented v2 way to read them is the `Netlify`
+      // global injected into every v2 function's scope. Try that first and
+      // fall back to `process.env` so this also still works if a future
+      // Netlify runtime change reverses that.
       buildInfo: {
-        commit: process.env.COMMIT_REF || null,
-        deployId: process.env.DEPLOY_ID || null,
+        commit:
+          (typeof Netlify !== "undefined" && Netlify.env && Netlify.env.get("COMMIT_REF")) ||
+          process.env.COMMIT_REF ||
+          null,
+        deployId:
+          (typeof Netlify !== "undefined" && Netlify.env && Netlify.env.get("DEPLOY_ID")) ||
+          process.env.DEPLOY_ID ||
+          null,
       },
     });
   }
