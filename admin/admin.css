@@ -5,6 +5,7 @@ body { padding: 0; }
 .admin-small { font-size: 13px; }
 
 .admin-login-screen { min-height: 90vh; display: flex; align-items: center; justify-content: center; }
+.admin-login-screen[hidden] { display: none; }
 .admin-login-card { width: 100%; max-width: 380px; background: var(--bg-panel); border: 1px solid var(--line); border-radius: 4px; padding: 40px; display: flex; flex-direction: column; gap: 16px; }
 .admin-login-card h1 { font-size: 30px; margin-bottom: 4px; }
 .admin-error { color: #d98c8c; font-size: 13.5px; min-height: 18px; }
