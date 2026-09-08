@@ -8,7 +8,7 @@
 // blocking new ones immediately (live, on every read) even before this job
 // runs — this job just writes the fact down so it's not only a computed,
 // in-memory state.
-import { listBookings, saveBooking, getPricingSettings, releaseNights } from "./_lib/store.mjs";
+import { listBookings, saveBooking, getPricingSettings, releaseNights, pushHistory } from "./_lib/store.mjs";
 import { effectiveStatus } from "./_lib/availability.mjs";
 import { nightsBetween } from "./_lib/dates.mjs";
 
@@ -24,6 +24,7 @@ export default async () => {
 
     b.status = status; // "expired_unanswered" | "expired_unpaid"
     b.expiredAt = new Date().toISOString();
+    pushHistory(b, status, { by: "scheduled-sweep" });
     await saveBooking(b.id, b);
     await releaseNights(nightsBetween(b.checkin, b.checkout), b.id);
     expiredCount++;

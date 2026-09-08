@@ -9,9 +9,29 @@
     pending: "Aangevraagd",
     confirmed: "Goedgekeurd",
     declined: "Afgewezen",
+    cancelled: "Geannuleerd",
     expired_unanswered: "Verlopen (niet beantwoord)",
     expired_unpaid: "Verlopen (niet betaald)",
   };
+  const HISTORY_EVENT_LABELS = {
+    requested: "Aangevraagd",
+    approved: "Goedgekeurd",
+    declined: "Afgewezen",
+    cancelled: "Geannuleerd",
+    paid: "Betaald",
+    payment_link_created: "Betaallink aangemaakt",
+    payment_link_error: "Betaallink aanmaken mislukt",
+    expired_unanswered: "Verlopen (niet beantwoord)",
+    expired_unpaid: "Verlopen (niet betaald)",
+    stale_link_payment_alert: "⚠ Betaling ontvangen op niet-actieve boeking",
+  };
+  const HISTORY_BY_LABELS = {
+    "owner-email-link": "via e-maillink",
+    admin: "door jou (beheer)",
+    "scheduled-sweep": "automatisch",
+  };
+  let bookingsById = {};
+  let openBookingId = null;
 
   let settings = null;
   let rates = {};
@@ -156,11 +176,19 @@
     el.innerHTML = "Laden…";
     const { ok, data } = await api("admin-bookings");
     if (!ok) { el.innerHTML = "Kon aanvragen niet laden."; return; }
-    if (!data.bookings.length) { el.innerHTML = "<p class=\"admin-dim\">Nog geen aanvragen.</p>"; return; }
-    const rows = data.bookings.map((b) => {
+    if (!data.bookings.length) { el.innerHTML = "<p class=\"admin-dim\">Nog geen aanvragen.</p>"; bookingsById = {}; return; }
+    bookingsById = Object.fromEntries(data.bookings.map((b) => [b.id, b]));
+    renderBookingsTable();
+  }
+
+  function renderBookingsTable() {
+    const el = document.getElementById("ae-bookings-list");
+    const bookings = Object.values(bookingsById).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const rows = bookings.map((b) => {
       const pill = `<span class="status-pill status-${b.status}">${STATUS_LABELS[b.status] || b.status}</span>`;
       const paid = b.paid ? `<span class="status-paid-badge">Betaald ✓</span>` : (b.status === "confirmed" ? "Nog niet betaald" : "—");
-      return `<tr>
+      const isOpen = openBookingId === b.id;
+      const row = `<tr class="admin-booking-row${isOpen ? " is-open" : ""}" data-id="${b.id}">
         <td>${fmtDateNL(b.checkin)} → ${fmtDateNL(b.checkout)} (${b.nights}n)</td>
         <td>${escapeHtml(b.name)}<br><span class="admin-dim admin-small">${escapeHtml(b.email)}</span></td>
         <td>${b.adults} volw.${b.children ? `, ${b.children} kind(eren)` : ""}</td>
@@ -168,11 +196,147 @@
         <td>${paid}</td>
         <td>${b.totalCents != null ? fmtEuro(b.totalCents) : "—"}</td>
       </tr>`;
+      const detailRow = isOpen
+        ? `<tr class="admin-booking-detail-row" data-detail-for="${b.id}"><td colspan="6">${renderBookingDetail(b)}</td></tr>`
+        : "";
+      return row + detailRow;
     }).join("");
     el.innerHTML = `<table class="admin-table">
       <thead><tr><th>Data</th><th>Gast</th><th>Gasten</th><th>Status</th><th>Betaling</th><th>Totaal (incl. borg)</th></tr></thead>
-      <tbody>${rows}</tbody>
+      <tbody id="ae-bookings-tbody">${rows}</tbody>
     </table>`;
+    bindBookingRowHandlers();
+  }
+
+  function renderBookingDetail(b) {
+    const q = b.quote;
+    const quoteRows = q ? [
+      [`Kale huur (${q.nights} nachten)`, fmtEuro(q.rentalSubtotalCents)],
+      ...(q.discountKind ? [[`Korting (${q.discountKind}, -${q.discountPercent}%)`, `-${fmtEuro(q.discountAmountCents)}`]] : []),
+      ["Linnengoed", fmtEuro(q.linenFeeCents)],
+      ["Schoonmaak", fmtEuro(q.cleaningFeeCents)],
+      ["Toeristenbelasting", fmtEuro(q.touristTaxCents)],
+      ["Subtotaal verblijf", fmtEuro(q.totalCents)],
+      ["Waarborgsom", fmtEuro(q.depositCents)],
+      ["Totaal (incl. borg)", fmtEuro(q.totalWithDepositCents)],
+    ] : [];
+
+    const history = (b.history || []).slice().sort((a, h) => new Date(a.at) - new Date(h.at));
+    const historyItems = history.length
+      ? history.map((h) => {
+          const label = HISTORY_EVENT_LABELS[h.event] || h.event;
+          const by = h.by ? ` — ${HISTORY_BY_LABELS[h.by] || h.by}` : "";
+          const reason = h.reason ? ` (reden: ${escapeHtml(h.reason)})` : "";
+          return `<li><span class="hist-event">${fmtDateTimeNL(h.at)}</span> — ${label}${by}${reason}</li>`;
+        }).join("")
+      : `<li class="admin-dim">Geen historie beschikbaar (aangemaakt vóór deze functie).</li>`;
+
+    const staleWarning = b.staleLinkPayment
+      ? `<div class="admin-stale-payment-warning">⚠ Er is op ${fmtDateTimeNL(b.staleLinkPayment.detectedAt)} een betaling van
+         ${b.staleLinkPayment.amountTotalCents != null ? fmtEuro(b.staleLinkPayment.amountTotalCents) : "?"} binnengekomen
+         terwijl deze boeking al "${STATUS_LABELS[b.staleLinkPayment.bookingStatusAtPayment] || b.staleLinkPayment.bookingStatusAtPayment}" was.
+         Dit bedrag is <b>niet</b> aan deze boeking toegevoegd — regel dit handmatig terug via het Stripe-dashboard
+         (checkout session <code>${b.staleLinkPayment.stripeCheckoutSessionId}</code>).</div>`
+      : "";
+
+    const actions = [];
+    if (b.canDecline) actions.push(`<button type="button" class="btn-danger" data-action="decline" data-id="${b.id}">Aanvraag afwijzen</button>`);
+    if (b.canCancel) actions.push(`<button type="button" class="btn-danger" data-action="cancel" data-id="${b.id}">Boeking annuleren</button>`);
+    const actionsHtml = actions.length
+      ? `<div class="field" style="max-width:360px;"><label for="ae-cancel-reason-${b.id}">Reden (optioneel, alleen intern)</label>
+           <input class="input" type="text" id="ae-cancel-reason-${b.id}" maxlength="300"></div>
+         <div class="admin-detail-actions">${actions.join("")}</div>
+         <div class="admin-detail-result admin-dim" id="ae-detail-result-${b.id}"></div>`
+      : "";
+
+    return `<div class="admin-booking-detail">
+      ${staleWarning}
+      <div class="admin-booking-detail-grid">
+        <div>
+          <h4>Gast</h4>
+          <p class="admin-small">${escapeHtml(b.name)} — ${escapeHtml(b.email)}${b.phone ? ` — ${escapeHtml(b.phone)}` : ""}</p>
+          ${b.message ? `<p class="admin-small admin-dim">"${escapeHtml(b.message)}"</p>` : ""}
+          <h4 style="margin-top:14px;">Betaling</h4>
+          <p class="admin-small">
+            ${b.paid ? `<span class="status-paid-badge">Betaald${b.paidAt ? ` op ${fmtDateTimeNL(b.paidAt)}` : ""}</span>` : "Nog niet betaald"}
+            ${b.stripePaymentLinkUrl ? `<br><a href="${b.stripePaymentLinkUrl}" target="_blank" rel="noopener">Betaallink</a>` : ""}
+            ${b.stripePaymentLinkDeactivateError ? `<br><span class="admin-dim">Let op: betaallink deactiveren mislukt (${escapeHtml(b.stripePaymentLinkDeactivateError)}) — zet 'm handmatig uit in Stripe.</span>` : ""}
+          </p>
+          ${b.cancelledAt ? `<p class="admin-small admin-dim">Geannuleerd op ${fmtDateTimeNL(b.cancelledAt)}${b.cancelReason ? ` — reden: ${escapeHtml(b.cancelReason)}` : ""}</p>` : ""}
+        </div>
+        <div>
+          <h4>Prijsopbouw</h4>
+          ${q ? `<table class="admin-quote-table">${quoteRows.map(([l, v]) => `<tr><td>${l}</td><td>${v}</td></tr>`).join("")}</table>` : `<p class="admin-dim admin-small">Geen prijsopbouw beschikbaar.</p>`}
+        </div>
+      </div>
+      <h4>Historie</h4>
+      <ul class="admin-history-list">${historyItems}</ul>
+      ${actionsHtml}
+    </div>`;
+  }
+
+  function bindBookingRowHandlers() {
+    const tbody = document.getElementById("ae-bookings-tbody");
+    if (!tbody) return;
+    tbody.querySelectorAll(".admin-booking-row").forEach((tr) => {
+      tr.addEventListener("click", () => {
+        const id = tr.dataset.id;
+        openBookingId = openBookingId === id ? null : id;
+        renderBookingsTable();
+      });
+    });
+    tbody.querySelectorAll("[data-action]").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        handleBookingAction(btn.dataset.id, btn.dataset.action);
+      });
+    });
+  }
+
+  function handleBookingAction(id, action) {
+    const b = bookingsById[id];
+    if (!b) return;
+    const reasonInput = document.getElementById(`ae-cancel-reason-${id}`);
+    const reason = reasonInput ? reasonInput.value.trim() : "";
+    const confirmText = action === "cancel"
+      ? `Boeking van ${escapeHtml(b.name)} (${fmtDateNL(b.checkin)} → ${fmtDateNL(b.checkout)}) annuleren?${b.paid ? " Deze boeking is al betaald — annuleren keert dit geld NIET automatisch terug." : ""} De data komen weer vrij voor andere aanvragen.`
+      : `Aanvraag van ${escapeHtml(b.name)} (${fmtDateNL(b.checkin)} → ${fmtDateNL(b.checkout)}) afwijzen? De gast krijgt hier een e-mail over.`;
+    showBookingConfirm(confirmText, async () => {
+      const resultEl = document.getElementById(`ae-detail-result-${id}`);
+      const { ok, data } = await api("admin-booking-action", { method: "POST", body: JSON.stringify({ id, action, reason: reason || undefined }) });
+      if (!ok) {
+        if (resultEl) { resultEl.style.color = "#d98c8c"; resultEl.textContent = data.error || "Actie mislukt."; }
+        return;
+      }
+      await loadBookings();
+      openBookingId = id;
+      renderBookingsTable();
+      const freshResultEl = document.getElementById(`ae-detail-result-${id}`);
+      if (freshResultEl) {
+        freshResultEl.style.color = "#c9a769";
+        freshResultEl.innerHTML = action === "cancel" ? "✓ Boeking geannuleerd." : "✓ Aanvraag afgewezen.";
+        if (data.refundNote) {
+          freshResultEl.innerHTML += `<div class="admin-refund-warning">${escapeHtml(data.refundNote)}</div>`;
+        }
+      }
+    });
+  }
+
+  function showBookingConfirm(text, onYes) {
+    const box = document.getElementById("ae-bookings-confirm-box");
+    document.getElementById("ae-bookings-confirm-text").textContent = text;
+    box.hidden = false;
+    const yes = document.getElementById("ae-bookings-confirm-yes");
+    const no = document.getElementById("ae-bookings-confirm-no");
+    const cleanup = () => { box.hidden = true; yes.onclick = null; no.onclick = null; };
+    yes.onclick = async () => { cleanup(); await onYes(); };
+    no.onclick = cleanup;
+  }
+
+  function fmtDateTimeNL(iso) {
+    if (!iso) return "onbekend";
+    const d = new Date(iso);
+    return `${String(d.getDate()).padStart(2, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}-${d.getFullYear()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
   }
 
   function escapeHtml(s) {

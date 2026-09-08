@@ -3,7 +3,7 @@
 // the signature, re-checks availability, updates the booking, emails the
 // guest, and shows a small branded confirmation page — no login needed for
 // this one link (the signature itself is the credential), unlike /admin.
-import { getBooking, saveBooking, getPricingSettings, releaseNights } from "./_lib/store.mjs";
+import { getBooking, saveBooking, getPricingSettings, releaseNights, pushHistory } from "./_lib/store.mjs";
 import { computeAvailability, effectiveStatus } from "./_lib/availability.mjs";
 import { nightsBetween } from "./_lib/dates.mjs";
 import { verifyAction } from "./_lib/token.mjs";
@@ -70,6 +70,7 @@ export default async (req) => {
 
   booking.status = action === "approve" ? "confirmed" : "declined";
   booking.respondedAt = new Date().toISOString();
+  pushHistory(booking, booking.status === "confirmed" ? "approved" : "declined", { by: "owner-email-link" });
 
   if (booking.status === "declined") {
     // Free the night-locks so those dates can be claimed by a future
@@ -83,11 +84,13 @@ export default async (req) => {
       const link = await createBookingPaymentLink(booking);
       booking.stripePaymentLinkUrl = link.url;
       booking.stripePaymentLinkId = link.id;
+      pushHistory(booking, "payment_link_created", { stripePaymentLinkId: link.id });
     } catch (e) {
       // Don't block the confirmation on this — the owner can still send a
       // payment link manually later. Surfaced on the confirmation page below.
       booking.stripePaymentLinkError = e.message;
       paymentLinkNote = ` (Payment link could not be created: ${e.message} — check STRIPE_SECRET_KEY in Netlify, then send the guest a link manually.)`;
+      pushHistory(booking, "payment_link_error", { error: e.message });
     }
   }
 

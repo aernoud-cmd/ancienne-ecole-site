@@ -15,23 +15,41 @@ export default async (req) => {
   const bookings = await listBookings({ strong: true });
 
   const summary = bookings
-    .map((b) => ({
-      id: b.id,
-      checkin: b.checkin,
-      checkout: b.checkout,
-      nights: b.nights,
-      adults: b.adults,
-      children: b.children,
-      name: b.name,
-      email: b.email,
-      status: effectiveStatus(b, settings), // pending | confirmed | declined | expired_unanswered | expired_unpaid
-      paid: !!b.paid,
-      totalCents: b.quote?.totalWithDepositCents ?? null,
-      currency: b.quote?.currency ?? "EUR",
-      createdAt: b.createdAt,
-      respondedAt: b.respondedAt || null,
-      paidAt: b.paidAt || null,
-    }))
+    .map((b) => {
+      const status = effectiveStatus(b, settings); // pending | confirmed | declined | cancelled | expired_unanswered | expired_unpaid
+      return {
+        id: b.id,
+        checkin: b.checkin,
+        checkout: b.checkout,
+        nights: b.nights,
+        adults: b.adults,
+        children: b.children,
+        name: b.name,
+        email: b.email,
+        phone: b.phone || "",
+        message: b.message || "",
+        status,
+        paid: !!b.paid,
+        totalCents: b.quote?.totalWithDepositCents ?? null,
+        currency: b.quote?.currency ?? "EUR",
+        quote: b.quote || null,
+        createdAt: b.createdAt,
+        respondedAt: b.respondedAt || null,
+        paidAt: b.paidAt || null,
+        cancelledAt: b.cancelledAt || null,
+        cancelledBy: b.cancelledBy || null,
+        cancelReason: b.cancelReason || null,
+        stripePaymentLinkUrl: b.stripePaymentLinkUrl || null,
+        stripePaymentLinkDeactivateError: b.stripePaymentLinkDeactivateError || null,
+        staleLinkPayment: b.staleLinkPayment || null,
+        history: Array.isArray(b.history) ? b.history : [],
+        // What the admin row's action buttons should offer right now — kept
+        // in sync with admin-booking-action.mjs's own rules, so the UI never
+        // offers a button the backend would then reject.
+        canDecline: ["pending", "expired_unanswered"].includes(status),
+        canCancel: status === "confirmed",
+      };
+    })
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   return new Response(JSON.stringify({ ok: true, bookings: summary }), {

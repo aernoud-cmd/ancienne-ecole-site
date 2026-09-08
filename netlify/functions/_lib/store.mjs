@@ -44,6 +44,21 @@ export async function saveBooking(id, data) {
   await store.setJSON(id, data);
 }
 
+// Appends one entry to a booking's audit trail in place and returns the
+// booking, so call sites can do `pushHistory(booking, "approved", {...})`
+// right before `saveBooking(id, booking)`. This is the one place every
+// status-changing code path (book.mjs, respond.mjs, stripe-webhook.mjs,
+// expire-bookings.mjs, admin-booking-action.mjs) records what happened, so
+// /admin's booking detail view has a real timeline instead of just the
+// handful of top-level *At fields. Bookings created before this existed
+// simply have no/partial history — the admin UI shows what's there rather
+// than pretending otherwise.
+export function pushHistory(booking, event, meta = {}) {
+  if (!Array.isArray(booking.history)) booking.history = [];
+  booking.history.push({ at: new Date().toISOString(), event, ...meta });
+  return booking;
+}
+
 export async function listBookings({ strong = false } = {}) {
   const store = bookingsStore();
   const { blobs } = await store.list();

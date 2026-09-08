@@ -104,6 +104,25 @@ export async function createBookingPaymentLink(booking) {
   return { url: link.url, id: link.id };
 }
 
+/**
+ * Deactivates a previously-created Payment Link so it stops accepting new
+ * payments — called when the owner cancels an approved booking from
+ * /admin. `restrictions.completed_sessions.limit: 1` already stops a
+ * SECOND payment on a link once it's been paid once, but does nothing to
+ * stop a first-ever payment on a still-active link after the underlying
+ * booking has been cancelled — this is what closes that gap. Throws if
+ * STRIPE_SECRET_KEY isn't set or the Stripe API call fails; callers should
+ * treat that as "could not deactivate, tell the owner", not fail the
+ * cancellation itself — the booking record is what actually governs
+ * availability and the stripe-webhook.mjs status check is the second,
+ * load-bearing layer of this same protection.
+ */
+export async function deactivatePaymentLink(paymentLinkId) {
+  const stripe = client();
+  if (!stripe) throw new Error("STRIPE_SECRET_KEY is not set");
+  await stripe.paymentLinks.update(paymentLinkId, { active: false });
+}
+
 export function verifyWebhookSignature(rawBody, signatureHeader) {
   const stripe = client();
   const secret = process.env.STRIPE_WEBHOOK_SECRET;

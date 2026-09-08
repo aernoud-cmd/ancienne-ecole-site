@@ -10,6 +10,7 @@ import {
   saveBooking,
   claimNights,
   releaseNights,
+  pushHistory,
 } from "./_lib/store.mjs";
 import { computeAvailability } from "./_lib/availability.mjs";
 import { isValidISODate, nightsBetween } from "./_lib/dates.mjs";
@@ -104,7 +105,9 @@ export default async (req) => {
     // /admin must not silently change what this guest was already shown.
     quote,
     paid: false,
+    history: [],
   };
+  pushHistory(booking, "requested");
 
   try {
     await saveBooking(id, booking);

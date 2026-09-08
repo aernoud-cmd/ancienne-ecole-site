@@ -104,7 +104,29 @@ body { padding: 0; }
 .status-confirmed { background: rgba(111,174,116,0.18); color: #6fae74; }
 .status-declined { background: rgba(217,140,140,0.18); color: #d98c8c; }
 .status-expired_unanswered, .status-expired_unpaid { background: rgba(168,157,137,0.18); color: var(--text-dim); }
+.status-cancelled { background: rgba(217,140,140,0.12); color: #d98c8c; }
 .status-paid-badge { color: #6fae74; font-weight: 600; }
+
+.admin-booking-row { cursor: pointer; }
+.admin-booking-row:hover { background: rgba(201,167,105,0.06); }
+.admin-booking-row.is-open { background: rgba(201,167,105,0.1); }
+.admin-booking-detail-row td { padding: 0; border-bottom: 1px solid var(--line); }
+.admin-booking-detail { padding: 18px 20px 22px; background: rgba(255,255,255,0.02); }
+.admin-booking-detail h4 { margin: 0 0 8px; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-dim); font-weight: 500; }
+.admin-booking-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 16px; }
+.admin-quote-table { border-collapse: collapse; font-size: 13px; }
+.admin-quote-table td { padding: 2px 16px 2px 0; color: var(--text-dim); }
+.admin-quote-table td:last-child { text-align: right; color: var(--text); padding-right: 0; }
+.admin-history-list { list-style: none; margin: 0; padding: 0; font-size: 12.5px; }
+.admin-history-list li { padding: 4px 0; border-bottom: 1px dotted var(--line); color: var(--text-dim); }
+.admin-history-list li:last-child { border-bottom: none; }
+.admin-history-list .hist-event { color: var(--text); font-weight: 500; }
+.admin-detail-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
+.btn-danger { background: transparent; border: 1px solid #d98c8c; color: #d98c8c; border-radius: 3px; padding: 8px 16px; font-size: 13px; cursor: pointer; }
+.btn-danger:hover { background: rgba(217,140,140,0.1); }
+.admin-detail-result { font-size: 12.5px; margin-top: 10px; }
+.admin-refund-warning { border: 1px solid #d9b866; background: rgba(217,184,102,0.08); color: #d9b866; padding: 10px 12px; border-radius: 2px; font-size: 12.5px; line-height: 1.6; margin-top: 10px; }
+.admin-stale-payment-warning { border: 1px solid #d98c8c; background: rgba(217,140,140,0.08); color: #d98c8c; padding: 10px 12px; border-radius: 2px; font-size: 12.5px; line-height: 1.6; margin-bottom: 12px; }
 
 @media (max-width: 860px) {
   .admin-calendar-layout { flex-direction: column; }

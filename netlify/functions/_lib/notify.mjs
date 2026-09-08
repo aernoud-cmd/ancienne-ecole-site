@@ -193,6 +193,17 @@ const GUEST_COPY = {
       body: (b) =>
         `<p>Hello ${b.name} — unfortunately we can't accommodate <b>${b.checkin} to ${b.checkout}</b> after all. We're sorry for the inconvenience, and happy to help you find other dates.</p>`,
     },
+    cancelled: {
+      subject: "Your booking has been cancelled — L'Ancienne École",
+      body: (b) =>
+        `<p>Hello ${b.name} — your previously approved stay for <b>${b.checkin} to ${b.checkout}</b> has been cancelled. We're sorry for the inconvenience.</p>
+         ${
+           b.paid
+             ? `<p>Our records show this booking was already paid. Your refund is being handled separately by Aernoud and is <b>not</b> automatic from this email — please get in touch if you don't hear from us shortly.</p>`
+             : ""
+         }
+         <p>Please don't hesitate to reach out with any questions.</p>`,
+    },
   },
   fr: {
     received: {
@@ -225,6 +236,17 @@ const GUEST_COPY = {
       body: (b) =>
         `<p>Bonjour ${b.name} — malheureusement nous ne pouvons pas vous accueillir du <b>${b.checkin} au ${b.checkout}</b>. Toutes nos excuses, et n'hésitez pas si vous souhaitez essayer d'autres dates.</p>`,
     },
+    cancelled: {
+      subject: "Votre réservation a été annulée — L'Ancienne École",
+      body: (b) =>
+        `<p>Bonjour ${b.name} — votre séjour précédemment approuvé du <b>${b.checkin} au ${b.checkout}</b> a été annulé. Toutes nos excuses pour la gêne occasionnée.</p>
+         ${
+           b.paid
+             ? `<p>Nos registres indiquent que cette réservation était déjà payée. Votre remboursement est traité séparément par Aernoud et n'est <b>pas</b> automatique suite à cet e-mail — contactez-nous si vous restez sans nouvelles.</p>`
+             : ""
+         }
+         <p>N'hésitez pas à nous contacter pour toute question.</p>`,
+    },
   },
   nl: {
     received: {
@@ -256,6 +278,17 @@ const GUEST_COPY = {
       subject: "Over je aanvraag — L'Ancienne École",
       body: (b) =>
         `<p>Hallo ${b.name} — helaas kunnen we je toch niet ontvangen van <b>${b.checkin} t/m ${b.checkout}</b>. Onze excuses, en laat het gerust weten als je andere data wilt proberen.</p>`,
+    },
+    cancelled: {
+      subject: "Je boeking is geannuleerd — L'Ancienne École",
+      body: (b) =>
+        `<p>Hallo ${b.name} — je eerder goedgekeurde verblijf van <b>${b.checkin} t/m ${b.checkout}</b> is geannuleerd. Onze excuses voor het ongemak.</p>
+         ${
+           b.paid
+             ? `<p>Volgens onze gegevens was deze boeking al betaald. Je terugbetaling wordt apart door Aernoud geregeld en gebeurt <b>niet</b> automatisch via deze e-mail — neem contact op als je hier niets over hoort.</p>`
+             : ""
+         }
+         <p>Neem gerust contact op als je vragen hebt.</p>`,
     },
   },
 };
