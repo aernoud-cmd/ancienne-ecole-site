@@ -148,6 +148,7 @@
     renderBuildBadge(data.buildInfo);
     renderCalendar();
     renderSettingsForm();
+    lastLoadedAt = Date.now();
   }
 
   async function loadBookings() {
@@ -749,6 +750,26 @@
   }
 
   // ---- Boot -------------------------------------------------------------
+
+  // A browser tab left open for a while can otherwise silently show hours-old
+  // prices/rates and let a save based on that stale view clobber a change
+  // made from another tab or another day. Refetching on focus/visibility —
+  // but ONLY when nothing is unsaved — keeps a long-lived tab honest without
+  // ever discarding in-progress edits behind the owner's back.
+  let lastLoadedAt = 0;
+  const STALE_AFTER_MS = 2 * 60 * 1000;
+  async function refreshIfStale() {
+    if (document.getElementById("ae-app-screen").hidden) return; // not logged in / not shown yet
+    if (formDirty) return; // never silently discard an in-progress edit
+    if (Date.now() - lastLoadedAt < STALE_AFTER_MS) return;
+    try {
+      await loadPricing();
+    } catch (e) {
+      if (e.message !== "not-authenticated") console.error(e);
+    }
+  }
+  window.addEventListener("focus", refreshIfStale);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshIfStale(); });
 
   async function boot() {
     const t = new Date();

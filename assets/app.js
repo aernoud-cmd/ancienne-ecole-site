@@ -28,4 +28,31 @@
     var m = document.getElementById('ae-nav-mobile');
     if (m) m.classList.toggle('open');
   };
+
+  // Keeps the homepage's "sleeps N guests" line honest with whatever the
+  // owner has actually configured in /admin, instead of a hand-typed number
+  // that silently drifts out of date (this is exactly how the copy ended up
+  // saying "8 adults + 1 child" while the real configured max was 8 guests
+  // total). The element's own static text is the fallback shown until (or
+  // if) this fetch succeeds, so a slow/broken network never shows nothing.
+  function updateCapacityBlurb(){
+    var el = document.getElementById('ae-capacity-blurb');
+    if (!el) return;
+    var template = el.getAttribute('data-capacity-template');
+    if (!template) return;
+    fetch('/.netlify/functions/availability')
+      .then(function (res) { return res.ok ? res.json() : null; })
+      .then(function (data) {
+        var n = data && data.capacity && data.capacity.maxTotalGuests;
+        if (typeof n === 'number' && n > 0) {
+          el.textContent = template.replace('{n}', n);
+        }
+      })
+      .catch(function () { /* keep the static fallback text already in the page */ });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', updateCapacityBlurb);
+  } else {
+    updateCapacityBlurb();
+  }
 })();

@@ -4,7 +4,7 @@
 // guest, and shows a small branded confirmation page — no login needed for
 // this one link (the signature itself is the credential), unlike /admin.
 import { getBooking, saveBooking, getPricingSettings, releaseNights } from "./_lib/store.mjs";
-import { computeAvailability } from "./_lib/availability.mjs";
+import { computeAvailability, effectiveStatus } from "./_lib/availability.mjs";
 import { nightsBetween } from "./_lib/dates.mjs";
 import { verifyAction } from "./_lib/token.mjs";
 import { sendGuestEmail } from "./_lib/notify.mjs";
@@ -33,6 +33,22 @@ export default async (req) => {
     );
   }
 
+  const settings = await getPricingSettings({ strong: true });
+
+  // A "pending" request whose expiry window has already passed (see
+  // effectiveStatus() — this is the same live-expiry check availability.mjs
+  // uses everywhere else) must not be approvable as if nothing happened,
+  // even though the stored `status` field itself hasn't been flipped by the
+  // hourly sweep yet. Declining an already-expired request is still fine —
+  // it only releases dates that should already be free either way.
+  if (action === "approve" && effectiveStatus(booking, settings) === "expired_unanswered") {
+    return page(
+      "This request has expired",
+      `${booking.name}'s request for ${booking.checkin} → ${booking.checkout} was not answered within ${settings.pendingRequestExpiryHours} hours and has expired — it can no longer be approved directly. If the dates are still free and you want to honor it, contact ${booking.name} at ${booking.email} and ask them to submit a new request.`,
+      true
+    );
+  }
+
   const nights = nightsBetween(booking.checkin, booking.checkout);
 
   if (action === "approve") {
@@ -41,7 +57,6 @@ export default async (req) => {
     // a strongly-consistent read, against every OTHER confirmed booking and
     // against Airbnb — excluding this booking's own (still "pending") nights
     // from the busy set, since those are what we're about to confirm.
-    const settings = await getPricingSettings({ strong: true });
     const { busyNights } = await computeAvailability(settings, { strong: true, excludeBookingId: id });
     const conflict = nights.some((n) => busyNights.has(n));
     if (conflict) {
