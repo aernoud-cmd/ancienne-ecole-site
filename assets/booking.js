@@ -346,7 +346,13 @@
     if (!el) return;
     if (availabilityOk) {
       el.style.display = "none";
-      if (grid) grid.style.display = "";
+      // Explicitly "grid", not "" — clearing the inline style entirely would
+      // fall back to the div's default block display (there's no stylesheet
+      // rule for #ae-cal-days, only the original inline "display: grid" the
+      // markup ships with), collapsing the 7-column calendar into a single
+      // vertical stack of oversized cells. Restore the actual value, don't
+      // just clear it.
+      if (grid) grid.style.display = "grid";
       return;
     }
     const t = STRINGS[lang];
