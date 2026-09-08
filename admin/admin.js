@@ -311,6 +311,13 @@
       await loadBookings();
       openBookingId = id;
       renderBookingsTable();
+      // The Kalender & prijzen tab's nightSources aren't reloaded just by
+      // switching tabs — without this, a cancelled/declined booking's dates
+      // would keep showing as busy there until the next full page load or
+      // stale-tab refresh, even though the server already freed them (see
+      // the empty-actions branch below: those nights ARE actually free —
+      // this is only about the calendar view catching up to that).
+      if (!formDirty) loadPricing().catch(() => {});
       const freshResultEl = document.getElementById(`ae-detail-result-${id}`);
       if (freshResultEl) {
         freshResultEl.style.color = "#c9a769";
@@ -318,6 +325,11 @@
         if (data.refundNote) {
           freshResultEl.innerHTML += `<div class="admin-refund-warning">${escapeHtml(data.refundNote)}</div>`;
         }
+      } else {
+        // canCancel/canDecline are both false now that the action succeeded,
+        // so renderBookingDetail() no longer renders the actions/result
+        // block at all — the status pill (now "Geannuleerd"/"Afgewezen")
+        // and the fresh history entry are the confirmation in that case.
       }
     });
   }
