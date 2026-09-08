@@ -58,9 +58,15 @@ export function calculateQuote({ checkin, checkout, adults, children }, settings
     throw new QuoteError("MIN_NIGHTS_NOT_MET", { requiredNights: arrivalMinNights });
   }
 
-  if (Array.isArray(settings.allowedArrivalWeekdays) && settings.allowedArrivalWeekdays.length > 0) {
-    if (!settings.allowedArrivalWeekdays.includes(isoWeekday(checkin))) {
-      throw new QuoteError("ARRIVAL_DAY_NOT_ALLOWED", { allowedWeekdays: settings.allowedArrivalWeekdays });
+  // A per-date override (set from /admin on the arrival date itself) takes
+  // priority over the site-wide default — e.g. "arrivals Saturday-only
+  // except during the July/August school-holiday weeks, which also allow
+  // Sunday". Absent an override, the site-wide settings.allowedArrivalWeekdays
+  // applies exactly as before.
+  const allowedArrivalWeekdays = rates[checkin]?.allowedArrivalWeekdays ?? settings.allowedArrivalWeekdays;
+  if (Array.isArray(allowedArrivalWeekdays) && allowedArrivalWeekdays.length > 0) {
+    if (!allowedArrivalWeekdays.includes(isoWeekday(checkin))) {
+      throw new QuoteError("ARRIVAL_DAY_NOT_ALLOWED", { allowedWeekdays: allowedArrivalWeekdays });
     }
   }
 
@@ -70,6 +76,13 @@ export function calculateQuote({ checkin, checkout, adults, children }, settings
   const perNight = [];
   for (const date of nights) {
     const rate = rates[date];
+    // A night the owner has explicitly blocked (personal use, maintenance,
+    // etc. — set from /admin, independent of whether a price happens to be
+    // set) is never bookable, checked before RATE_MISSING so the guest gets
+    // the more specific reason.
+    if (rate?.blocked) {
+      throw new QuoteError("DATE_BLOCKED", { date });
+    }
     if (!rate || !Number.isFinite(rate.priceCents) || rate.priceCents <= 0) {
       throw new QuoteError("RATE_MISSING", { date });
     }

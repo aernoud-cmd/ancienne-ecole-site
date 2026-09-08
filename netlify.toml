@@ -1,7 +1,13 @@
 [build]
   publish = "."
   functions = "netlify/functions"
-  command = ""
+  # Rewrites every HTML page's <script>/<link> references to versioned
+  # assets/*.js|css and admin/admin.* as "file.ext?v=<content-hash>" — see
+  # scripts/build.mjs. This is what makes the long `immutable` Cache-Control
+  # below (for /assets/*) safe: a new deploy changes the URL, not just the
+  # file behind an unchanged one, so a visitor's already-cached JS/CSS is
+  # never silently stale-and-indistinguishable from current.
+  command = "node scripts/build.mjs"
 
 [functions]
   node_bundler = "esbuild"
@@ -12,9 +18,16 @@
   status = 200
 
 [[headers]]
+  # Safe to cache "forever" now that scripts/build.mjs appends a content-hash
+  # query string to every reference — a changed file gets a new URL, so
+  # there is no "stale but looks current" window any more (see [build]
+  # command above). Before this existed, a long/immutable cache here is what
+  # caused the "site still looks old after a deploy" bug earlier in this
+  # project's history — don't revert this without also removing the
+  # versioning, or that bug comes back.
   for = "/assets/*"
   [headers.values]
-    Cache-Control = "public, max-age=300, must-revalidate"
+    Cache-Control = "public, max-age=31536000, immutable"
 
 [[headers]]
   for = "/admin/*"

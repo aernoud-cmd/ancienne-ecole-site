@@ -137,6 +137,47 @@ test("a night with no price set is never treated as free or defaulted — it blo
   assert.equal(err.details.date, "2027-08-01");
 });
 
+test("a night the owner has explicitly blocked is never bookable, even if it still has a price set", () => {
+  const settings = baseSettings();
+  const rates = baseRates();
+  rates["2027-06-15"] = { ...rates["2027-06-15"], blocked: true };
+  const err = expectQuoteError(() =>
+    calculateQuote({ checkin: "2027-06-14", checkout: "2027-06-16", adults: 1, children: 0 }, settings, rates)
+  );
+  assert.equal(err.code, "DATE_BLOCKED");
+  assert.equal(err.details.date, "2027-06-15");
+});
+
+test("a blocked date with no price at all is reported as DATE_BLOCKED, not the less specific RATE_MISSING", () => {
+  const settings = baseSettings();
+  const rates = { "2027-06-15": { blocked: true } };
+  const err = expectQuoteError(() =>
+    calculateQuote({ checkin: "2027-06-15", checkout: "2027-06-16", adults: 1, children: 0 }, settings, rates)
+  );
+  assert.equal(err.code, "DATE_BLOCKED");
+});
+
+test("a per-date allowedArrivalWeekdays override on the arrival date takes priority over the site-wide setting", () => {
+  const settings = baseSettings({ allowedArrivalWeekdays: null }); // site-wide: any day allowed
+  const rates = baseRates();
+  // 2027-06-12 is a Saturday; override this one arrival date to Sunday-only.
+  rates["2027-06-12"] = { ...rates["2027-06-12"], allowedArrivalWeekdays: [7] };
+  const err = expectQuoteError(() =>
+    calculateQuote({ checkin: "2027-06-12", checkout: "2027-06-19", adults: 1, children: 0 }, settings, rates)
+  );
+  assert.equal(err.code, "ARRIVAL_DAY_NOT_ALLOWED");
+  assert.deepEqual(err.details.allowedWeekdays, [7]);
+});
+
+test("with no per-date override, the site-wide allowedArrivalWeekdays still applies exactly as before", () => {
+  const settings = baseSettings({ allowedArrivalWeekdays: [6] }); // Saturday-only site-wide
+  const rates = baseRates(); // 2027-06-12 has no per-date override
+  const err = expectQuoteError(() =>
+    calculateQuote({ checkin: "2027-06-13", checkout: "2027-06-19", adults: 1, children: 0 }, settings, rates)
+  );
+  assert.equal(err.code, "ARRIVAL_DAY_NOT_ALLOWED");
+});
+
 test("occupancy above configured capacity is rejected, and the true configured capacity is used (not a hardcoded 8)", () => {
   const settings = baseSettings({ capacity: { maxAdults: 4, maxChildren: 1, maxTotalGuests: 5, childMaxAge: 17 } });
   const rates = baseRates();

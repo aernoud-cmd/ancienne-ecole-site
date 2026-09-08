@@ -47,8 +47,14 @@
       depositNote: "Charged together with the stay total via the same secure payment link, then refunded by bank transfer after check-out once the house has been checked.",
       minNights: (n) => `This period requires a minimum stay of ${n} nights.`,
       rateMissing: "Some of the selected nights aren't open for booking yet. Please try different dates or contact us.",
+      dateBlocked: "One of the selected dates is not available. Please try different dates.",
       capacityExceeded: (max) => `This stay allows at most ${max.maxAdults} adults and ${max.maxChildren} children (${max.maxTotalGuests} guests total).`,
+      capacityWarning: (max) => `That's more guests than this stay allows: at most ${max.maxAdults} adults, ${max.maxChildren} children, ${max.maxTotalGuests} guests in total. Please adjust the numbers above.`,
       arrivalDayNotAllowed: "Stays can't start on that day of the week. Please pick a different check-in date.",
+      availabilityErrorTitle: "Couldn't check availability",
+      availabilityErrorBody: "We couldn't reliably load the calendar just now, so no dates can be selected — we'd rather show nothing than risk showing a date as free when it might not be.",
+      retry: "Try again",
+      checkingAvailability: "Checking availability…",
       prevMonth: "Previous month",
       nextMonth: "Next month",
       dayBooked: "booked",
@@ -88,8 +94,14 @@
       depositNote: "Débitée en même temps que le total du séjour via le même lien de paiement sécurisé, puis remboursée par virement après le départ, une fois la maison vérifiée.",
       minNights: (n) => `Cette période impose un séjour minimum de ${n} nuits.`,
       rateMissing: "Certaines nuits sélectionnées ne sont pas encore ouvertes à la réservation. Essayez d'autres dates ou contactez-nous.",
+      dateBlocked: "Une des dates sélectionnées n'est pas disponible. Merci de choisir d'autres dates.",
       capacityExceeded: (max) => `Ce séjour accepte au maximum ${max.maxAdults} adultes et ${max.maxChildren} enfants (${max.maxTotalGuests} personnes au total).`,
+      capacityWarning: (max) => `C'est plus de personnes que ce séjour n'accepte : au maximum ${max.maxAdults} adultes, ${max.maxChildren} enfants, ${max.maxTotalGuests} personnes au total. Merci d'ajuster les nombres ci-dessus.`,
       arrivalDayNotAllowed: "Les séjours ne peuvent pas commencer ce jour-là. Merci de choisir une autre date d'arrivée.",
+      availabilityErrorTitle: "Impossible de vérifier les disponibilités",
+      availabilityErrorBody: "Nous n'avons pas pu charger le calendrier de façon fiable — aucune date ne peut donc être sélectionnée pour l'instant : mieux vaut ne rien afficher que risquer de montrer une date comme libre alors qu'elle ne l'est peut-être pas.",
+      retry: "Réessayer",
+      checkingAvailability: "Vérification des disponibilités…",
       prevMonth: "Mois précédent",
       nextMonth: "Mois suivant",
       dayBooked: "réservé",
@@ -129,8 +141,14 @@
       depositNote: "Wordt samen met het totaalbedrag afgerekend via dezelfde beveiligde betaallink, en na vertrek per bankoverschrijving terugbetaald zodra het huis is gecontroleerd.",
       minNights: (n) => `Voor deze periode geldt een minimumverblijf van ${n} nachten.`,
       rateMissing: "Sommige geselecteerde nachten zijn nog niet open voor boeking. Probeer andere data of neem contact op.",
+      dateBlocked: "Eén van de geselecteerde data is niet beschikbaar. Kies andere data.",
       capacityExceeded: (max) => `Dit verblijf biedt plaats aan maximaal ${max.maxAdults} volwassenen en ${max.maxChildren} kinderen (${max.maxTotalGuests} gasten totaal).`,
+      capacityWarning: (max) => `Dat zijn meer gasten dan dit verblijf toestaat: maximaal ${max.maxAdults} volwassenen, ${max.maxChildren} kinderen, ${max.maxTotalGuests} gasten totaal. Pas de aantallen hierboven aan.`,
       arrivalDayNotAllowed: "Een verblijf kan niet op die dag beginnen. Kies een andere aankomstdatum.",
+      availabilityErrorTitle: "Beschikbaarheid kon niet worden gecontroleerd",
+      availabilityErrorBody: "We konden de kalender niet betrouwbaar laden, dus kunnen er nu geen data geselecteerd worden — dat is veiliger dan een datum als vrij tonen terwijl dat misschien niet zo is.",
+      retry: "Opnieuw proberen",
+      checkingAvailability: "Beschikbaarheid controleren…",
       prevMonth: "Vorige maand",
       nextMonth: "Volgende maand",
       dayBooked: "geboekt",
@@ -153,6 +171,13 @@
   let viewYear, viewMonth; // month is 0-indexed
   let selStart = null, selEnd = null; // "YYYY-MM-DD"
   let quoteRequestSeq = 0;
+  // Loading availability is safety-critical: if it fails, dates must NEVER
+  // silently default to "all open". availabilityOk starts false and only
+  // becomes true after a load that both succeeded (HTTP-wise) AND had the
+  // expected shape — see loadAvailability(). Every date-picking/quote/submit
+  // path checks this first.
+  let availabilityOk = false;
+  let availabilityLoading = false;
 
   function iso(y, m, d) {
     return `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
@@ -261,15 +286,97 @@
         childrenEl.appendChild(opt);
       }
     }
+    checkCapacity();
+  }
+
+  // Independent per-field maximums (adults 1..maxAdults, children
+  // 0..maxChildren) can still combine into a total over maxTotalGuests
+  // (e.g. settings maxAdults:8, maxChildren:6, maxTotalGuests:8 — 8+1 is
+  // invalid even though each field alone is in range). Rather than silently
+  // clamping whatever the guest actually chose, this shows a clear message
+  // and blocks the price/submit until they adjust it themselves — the exact
+  // same rule calculateQuote() enforces server-side (CAPACITY_EXCEEDED).
+  function ensureCapacityWarningEl() {
+    let el = document.getElementById("ae-capacity-warning");
+    if (el) return el;
+    const adultsEl = document.getElementById("adults");
+    const row = adultsEl && adultsEl.closest(".form-grid-2");
+    if (!row || !row.parentNode) return null;
+    el = document.createElement("div");
+    el.id = "ae-capacity-warning";
+    el.setAttribute("role", "alert");
+    el.setAttribute("aria-live", "assertive");
+    el.style.cssText = "display:none; color:#d98c8c; font-size:13px; margin:-6px 0 16px; line-height:1.5;";
+    row.parentNode.insertBefore(el, row.nextSibling);
+    return el;
+  }
+
+  function checkCapacity() {
+    const el = ensureCapacityWarningEl();
+    const { adults, children } = getPartySize();
+    const invalid = adults + children > capacity.maxTotalGuests;
+    if (el) {
+      el.style.display = invalid ? "block" : "none";
+      el.textContent = invalid ? STRINGS[lang].capacityWarning(capacity) : "";
+    }
+    const submitBtn = document.getElementById("ae-booking-submit");
+    if (submitBtn) submitBtn.disabled = invalid || !availabilityOk;
+    return !invalid;
   }
 
   // ---- Calendar -----------------------------------------------------
+
+  function ensureAvailabilityErrorEl() {
+    let el = document.getElementById("ae-availability-error");
+    if (el) return el;
+    const grid = document.getElementById("ae-cal-days");
+    if (!grid || !grid.parentNode) return null;
+    el = document.createElement("div");
+    el.id = "ae-availability-error";
+    el.setAttribute("role", "alert");
+    el.setAttribute("aria-live", "assertive");
+    el.style.cssText = "display:none; padding:18px; border:1px solid #d98c8c; border-radius:2px; margin-bottom:16px; background:rgba(217,140,140,0.08);";
+    grid.parentNode.insertBefore(el, grid);
+    return el;
+  }
+
+  function renderAvailabilityBanner() {
+    const el = ensureAvailabilityErrorEl();
+    const grid = document.getElementById("ae-cal-days");
+    if (!el) return;
+    if (availabilityOk) {
+      el.style.display = "none";
+      if (grid) grid.style.display = "";
+      return;
+    }
+    const t = STRINGS[lang];
+    if (grid) grid.style.display = "none";
+    el.style.display = "block";
+    el.innerHTML = `<div style="font-weight:600; margin-bottom:6px;">${availabilityLoading ? t.checkingAvailability : t.availabilityErrorTitle}</div>` +
+      (availabilityLoading ? "" : `<div style="font-size:13.5px; color:var(--text-dim); margin-bottom:12px;">${t.availabilityErrorBody}</div>` +
+      `<button type="button" class="btn-ghost" id="ae-availability-retry" style="border:1px solid var(--line); padding:8px 16px; cursor:pointer;">${t.retry}</button>`);
+    const retryBtn = document.getElementById("ae-availability-retry");
+    if (retryBtn) retryBtn.addEventListener("click", () => loadAvailability());
+  }
 
   function renderCalendar() {
     const label = document.getElementById("ae-cal-month-label");
     const grid = document.getElementById("ae-cal-days");
     if (!label || !grid) return;
     const t = STRINGS[lang];
+
+    renderAvailabilityBanner();
+    const submitBtn = document.getElementById("ae-booking-submit");
+    if (submitBtn) submitBtn.disabled = !availabilityOk || (document.getElementById("ae-capacity-warning") && document.getElementById("ae-capacity-warning").style.display === "block");
+
+    if (!availabilityOk) {
+      grid.innerHTML = "";
+      const nightsEl = document.getElementById("ae-cal-nights");
+      if (nightsEl) nightsEl.textContent = "";
+      const breakdown = document.getElementById("ae-price-breakdown");
+      if (breakdown) breakdown.innerHTML = "";
+      return;
+    }
 
     label.textContent = `${MONTH_NAMES[lang][viewMonth]} ${viewYear}`;
 
@@ -294,25 +401,48 @@
         selStart && selEnd && dateISO >= selStart && dateISO < selEnd;
       const isRangeEdge = dateISO === selStart || dateISO === selEnd;
 
+      // A busy/no-price date can still be a valid CHECK-OUT (departure) date
+      // — the guest doesn't stay that night, so it doesn't need to be free.
+      // rangeIsFree() already only checks the nights strictly between
+      // selStart and this date (see nightsInRange's `cur < end` loop), so
+      // reusing it here is what makes the click-gate match the logic that
+      // already validates the actual selection.
+      const isCandidateCheckout = !isPast && selStart && !selEnd && dateISO > selStart;
+      const validAsCheckout = isCandidateCheckout && rangeIsFree(selStart, dateISO);
+
       let style = "border:1px solid var(--line);cursor:pointer;";
       let statusWord = t.dayAvailable;
       if (isPast) {
         style = "color: var(--text-dim); opacity: 0.35;";
         statusWord = t.dayPast;
+      } else if (isRangeEdge) {
+        style = "background: var(--gold); color: #1a1408; font-weight: 600; cursor:pointer;";
+        if (isBusy) statusWord = t.dayBooked;
+        else if (isNoPrice) statusWord = t.dayNoPrice;
       } else if (isBusy) {
         style = "background: var(--bg-panel2); color: var(--text-dim); text-decoration: line-through;";
         statusWord = t.dayBooked;
+        if (validAsCheckout) style += "cursor:pointer;border:1px dashed var(--gold-soft);";
       } else if (isPending) {
         style = "background: var(--bg-panel2); color: var(--text-dim); border: 1px dashed var(--gold-soft);";
         statusWord = t.dayRequested;
       } else if (isNoPrice) {
         style = "color: var(--text-dim); border: 1px dashed var(--line); opacity: 0.55;";
         statusWord = t.dayNoPrice;
-      } else if (inSelectedRange || isRangeEdge) {
+        if (validAsCheckout) style += "cursor:pointer;";
+      } else if (inSelectedRange) {
         style = "background: var(--gold); color: #1a1408; font-weight: 600; cursor:pointer;";
       }
 
-      const clickable = !isPast && !isBusy && !isNoPrice;
+      // Clickable as a NEW start (no active selection, or completing one
+      // already finished) requires a genuinely free arrival night. Clickable
+      // as the CHECKOUT that completes an in-progress selection only needs
+      // every night strictly before it to be free — the departure date
+      // itself, and whether it happens to have a price, is irrelevant (the
+      // guest never stays that night). This is the fix for "can't select
+      // checkout on the day the next guest arrives, or on an unpriced date".
+      const startingFresh = !selStart || selEnd || dateISO <= selStart;
+      const clickable = !isPast && (startingFresh ? (!isBusy && !isNoPrice) : validAsCheckout);
       const dateObj = new Date(dateISO + "T00:00:00Z");
       const weekday = WEEKDAY_ABBR[lang][(dateObj.getUTCDay() + 6) % 7];
       const edgeSuffix = isRangeEdge
@@ -359,6 +489,7 @@
   }
 
   function pickDate(dateISO) {
+    if (!availabilityOk) return; // defense in depth — the grid shouldn't render clickable cells at all in this state
     if (!selStart || (selStart && selEnd) || dateISO <= selStart) {
       selStart = dateISO;
       selEnd = null;
@@ -381,18 +512,43 @@
     renderCalendar();
   }
 
+  // Safety-critical: a failed or malformed response must NEVER result in
+  // dates being offered as available. availabilityOk stays false (its
+  // startup default) unless this function positively confirms both an OK
+  // HTTP response AND the expected shape — checking res.ok alone isn't
+  // enough, since a 200 with a broken/truncated body is just as dangerous
+  // as an outright error. On any failure, existing (possibly stale) data is
+  // left untouched rather than reset, but availabilityOk still flips to
+  // false so the calendar shows the blocking error state either way — using
+  // stale-but-plausible data without telling the guest is exactly the
+  // "quietly wrong" failure mode this is meant to avoid.
   async function loadAvailability() {
+    availabilityLoading = true;
+    renderAvailabilityBanner();
     try {
       const res = await fetch("/.netlify/functions/availability");
+      if (!res.ok) throw new Error(`availability endpoint returned HTTP ${res.status}`);
       const data = await res.json();
-      busyNights = new Set(data.busyNights || []);
-      pendingNights = new Set(data.pendingNights || []);
-      noPriceNights = new Set(data.noPriceNights || []);
+      const shapeOk =
+        data && typeof data === "object" &&
+        Array.isArray(data.busyNights) &&
+        Array.isArray(data.pendingNights) &&
+        Array.isArray(data.noPriceNights) &&
+        data.capacity && typeof data.capacity.maxAdults === "number";
+      if (!shapeOk) throw new Error("availability endpoint returned an unexpected response shape");
+
+      busyNights = new Set(data.busyNights);
+      pendingNights = new Set(data.pendingNights);
+      noPriceNights = new Set(data.noPriceNights);
       minNightsByDate = data.minNightsByDate || {};
       if (data.defaultMinNights) defaultMinNights = data.defaultMinNights;
-      if (data.capacity) capacity = data.capacity;
+      capacity = data.capacity;
+      availabilityOk = true;
     } catch (e) {
-      console.warn("Could not load live availability — calendar will show all dates as open.", e);
+      console.error("Could not load live availability — blocking date selection rather than risking a stale/incorrect calendar.", e);
+      availabilityOk = false;
+    } finally {
+      availabilityLoading = false;
     }
     populateGuestSelects();
     renderCalendar();
@@ -413,6 +569,15 @@
   async function refreshQuote() {
     const breakdown = document.getElementById("ae-price-breakdown");
     if (!breakdown) return;
+
+    if (!availabilityOk) {
+      breakdown.innerHTML = "";
+      return;
+    }
+    if (!checkCapacity()) {
+      breakdown.innerHTML = ""; // the capacity warning banner already says why — no need to duplicate it here
+      return;
+    }
 
     if (!selStart || !selEnd) {
       breakdown.innerHTML = `<span style="color: var(--text-dim);">${STRINGS[lang].pricePrompt}</span>`;
@@ -447,6 +612,7 @@
     let msg = t.priceError;
     if (data && data.code === "MIN_NIGHTS_NOT_MET") msg = t.minNights(data.details.requiredNights);
     else if (data && data.code === "RATE_MISSING") msg = t.rateMissing;
+    else if (data && data.code === "DATE_BLOCKED") msg = t.dateBlocked;
     else if (data && data.code === "CAPACITY_EXCEEDED") msg = t.capacityExceeded(data.details);
     else if (data && data.code === "ARRIVAL_DAY_NOT_ALLOWED") msg = t.arrivalDayNotAllowed;
     breakdown.innerHTML = `<span style="color: #d98c8c;">${msg}</span>`;
@@ -494,6 +660,13 @@
     const t = STRINGS[lang];
     const btn = document.getElementById("ae-booking-submit");
 
+    if (!availabilityOk) {
+      showStatus(t.availabilityErrorTitle, true);
+      return false;
+    }
+    if (!checkCapacity()) {
+      return false; // the capacity warning banner already explains why
+    }
     if (!selStart || !selEnd) {
       showStatus(t.pickBothDates, true);
       return false;
@@ -537,6 +710,7 @@
         if (data.code === "DATES_UNAVAILABLE") throw new Error(t.rangeUnavailable);
         if (data.code === "MIN_NIGHTS_NOT_MET") throw new Error(t.minNights(data.details.requiredNights));
         if (data.code === "RATE_MISSING") throw new Error(t.rateMissing);
+        if (data.code === "DATE_BLOCKED") throw new Error(t.dateBlocked);
         if (data.code === "CAPACITY_EXCEEDED") throw new Error(t.capacityExceeded(data.details));
         if (data.code === "ARRIVAL_DAY_NOT_ALLOWED") throw new Error(t.arrivalDayNotAllowed);
         throw new Error(data.error || t.errorGeneric);

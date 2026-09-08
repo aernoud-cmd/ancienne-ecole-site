@@ -37,11 +37,16 @@
       <div>
         <div class="kicker">L'Ancienne École</div>
         <h1>Beheer</h1>
+        <div id="ae-build-badge" class="admin-build-badge"></div>
       </div>
       <button id="ae-logout-btn" class="btn-ghost" type="button">Uitloggen</button>
     </header>
 
     <div id="ae-sync-banner" class="admin-banner" hidden></div>
+    <div class="admin-sync-actions">
+      <button type="button" class="btn-ghost admin-small" id="ae-sync-now-btn">Nu synchroniseren</button>
+      <span id="ae-sync-now-status" class="admin-dim admin-small" role="status" aria-live="polite"></span>
+    </div>
 
     <nav class="admin-tabs" role="tablist" aria-label="Beheeronderdelen">
       <button class="admin-tab active" data-tab="calendar" role="tab" aria-selected="true">Kalender &amp; prijzen</button>
@@ -65,6 +70,7 @@
             <span><i class="dot dot-direct"></i>Eigen boeking (goedgekeurd/betaald)</span>
             <span><i class="dot dot-requested"></i>Aanvraag (in afwachting)</span>
             <span><i class="dot dot-airbnb"></i>Airbnb</span>
+            <span><i class="dot dot-blocked"></i>Eigen blokkade</span>
             <span><i class="dot dot-noprice"></i>Geen prijs ingesteld (niet boekbaar)</span>
           </div>
         </div>
@@ -72,28 +78,73 @@
         <div class="admin-panel-col">
           <div id="ae-selection-panel" class="admin-card">
             <h3>Periode</h3>
-            <p class="admin-dim admin-small">Klik een datum om te beginnen, klik een latere datum om de periode af te maken. Eén klik = die ene nacht.</p>
-            <div id="ae-selection-summary" class="admin-selection-summary">Nog geen datums geselecteerd.</div>
+            <p class="admin-dim admin-small">Klik de <b>eerste nacht</b>, klik daarna de <b>laatste nacht</b> (inbegrepen) — dezelfde datum nogmaals = één nacht. Werkt ook over maand-/jaargrenzen heen. Of vul de datums hieronder rechtstreeks in.</p>
 
-            <div class="admin-field-row">
+            <div class="admin-date-inputs">
               <div class="field">
-                <label for="ae-price-input">Nachtprijs (&euro;)</label>
-                <input class="input" type="number" min="0.01" step="0.01" id="ae-price-input" placeholder="bijv. 180,00">
+                <label for="ae-date-start-input">Eerste nacht</label>
+                <input class="input" type="date" id="ae-date-start-input">
               </div>
-              <button type="button" class="btn-primary" id="ae-set-price-btn" disabled>Prijs instellen</button>
+              <div class="field">
+                <label for="ae-date-end-input">Laatste nacht, inbegrepen</label>
+                <input class="input" type="date" id="ae-date-end-input">
+              </div>
+              <button type="button" class="btn-ghost" id="ae-date-range-apply-btn">Toepassen</button>
             </div>
-            <button type="button" class="btn-ghost admin-link-btn" id="ae-clear-price-btn" disabled>Prijs wissen (niet boekbaar maken)</button>
+            <div id="ae-date-range-error" class="admin-error" role="alert" aria-live="assertive"></div>
+
+            <div id="ae-selection-summary" class="admin-selection-summary">Nog geen datums geselecteerd.</div>
+            <button type="button" class="btn-ghost admin-link-btn" id="ae-clear-selection-btn">Selectie wissen</button>
 
             <hr class="admin-hr">
 
-            <div class="admin-field-row">
-              <div class="field">
-                <label for="ae-min-nights-input">Minimumverblijf (nachten)</label>
-                <input class="input" type="number" min="1" step="1" id="ae-min-nights-input" placeholder="bijv. 7">
+            <div id="ae-period-form" hidden>
+              <div id="ae-period-current-status" class="admin-dim admin-small" style="margin-bottom:14px;"></div>
+
+              <div class="admin-field-row">
+                <div class="field">
+                  <label for="ae-price-input">Nachtprijs (&euro;) — leeg = ongewijzigd</label>
+                  <input class="input" type="number" min="0.01" step="0.01" id="ae-price-input" placeholder="bijv. 180,00">
+                </div>
               </div>
-              <button type="button" class="btn-primary" id="ae-set-min-nights-btn" disabled>Minimumverblijf instellen</button>
+              <label class="admin-checkbox-row admin-small"><input type="checkbox" id="ae-price-clear-cb"> Prijs verwijderen (niet boekbaar maken)</label>
+
+              <div class="admin-field-row" style="margin-top:14px;">
+                <div class="field">
+                  <label for="ae-min-nights-input">Minimumverblijf (nachten) — leeg = ongewijzigd</label>
+                  <input class="input" type="number" min="1" step="1" id="ae-min-nights-input" placeholder="bijv. 7">
+                </div>
+              </div>
+              <label class="admin-checkbox-row admin-small"><input type="checkbox" id="ae-min-clear-cb"> Terug naar standaard minimumverblijf</label>
+
+              <div class="field" style="margin-top:14px;">
+                <label for="ae-blocked-select">Eigen blokkade</label>
+                <select class="input" id="ae-blocked-select">
+                  <option value="">Ongewijzigd laten</option>
+                  <option value="block">Blokkeren (niet boekbaar, eigen gebruik/onderhoud)</option>
+                  <option value="unblock">Blokkade opheffen</option>
+                </select>
+              </div>
+
+              <details style="margin-top:16px;">
+                <summary style="cursor:pointer;font-size:13px;color:var(--text-dim);">Geavanceerd: toegestane aankomstdagen voor deze periode</summary>
+                <div style="margin-top:10px;">
+                  <div class="field">
+                    <label for="ae-arrival-days-select">Voor aankomst op deze datum(s)</label>
+                    <select class="input" id="ae-arrival-days-select">
+                      <option value="">Ongewijzigd laten (site-brede instelling)</option>
+                      <option value="custom">Aangepast voor deze periode (dagen hieronder)</option>
+                      <option value="clear">Terugzetten naar site-brede instelling</option>
+                    </select>
+                  </div>
+                  <!-- populated by admin.js with one checkbox per weekday -->
+                  <div id="ae-arrival-days-checks" hidden style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;"></div>
+                  <p class="admin-note">Bijv. een minimumverblijf van 7 nachten betekent hier niet automatisch "alleen zaterdag" — stel dat hier apart in als je dat wilt, zonder de site-brede instelling te wijzigen.</p>
+                </div>
+              </details>
+
+              <button type="button" class="btn-primary" id="ae-save-period-btn" disabled style="margin-top:18px;">Wijzigingen opslaan</button>
             </div>
-            <button type="button" class="btn-ghost admin-link-btn" id="ae-clear-min-nights-btn" disabled>Terug naar standaard minimumverblijf</button>
 
             <div id="ae-confirm-box" class="admin-confirm-box" hidden>
               <p id="ae-confirm-text"></p>

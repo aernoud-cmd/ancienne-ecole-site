@@ -66,9 +66,11 @@ export async function getAirbnbSyncMeta() {
 
 export async function setAirbnbBusyNights(nights, sourceMeta) {
   const store = calendarStore();
+  const now = new Date().toISOString();
   await store.setJSON("airbnb-busy-nights", {
     nights,
-    syncedAt: new Date().toISOString(),
+    syncedAt: now, // last SUCCESSFUL sync
+    lastAttemptAt: now, // last attempt of any kind (success counts too)
     lastError: null, // a fresh successful sync clears any previous error
     ...sourceMeta,
   });
@@ -77,6 +79,10 @@ export async function setAirbnbBusyNights(nights, sourceMeta) {
 // Records a failed sync WITHOUT touching the last-known-good `nights` list
 // (setAirbnbBusyNights isn't called on failure) — surfaced on /admin so a
 // broken AIRBNB_ICAL_URL or an Airbnb-side outage doesn't go unnoticed.
+// lastAttemptAt is updated even on failure so /admin can show "last attempt"
+// separately from "last successful sync" — e.g. several failed retries in a
+// row after one old success should read as stale-and-struggling, not silently
+// look identical to a single failure right after a fresh success.
 export async function setAirbnbSyncError(message) {
   const store = calendarStore();
   const current = (await store.get("airbnb-busy-nights", { type: "json" })) || {};
@@ -84,6 +90,7 @@ export async function setAirbnbSyncError(message) {
     ...current,
     lastError: message,
     lastErrorAt: new Date().toISOString(),
+    lastAttemptAt: new Date().toISOString(),
   });
 }
 
@@ -125,8 +132,16 @@ export async function patchRates(patch) {
     const merged = { ...existing, ...fields };
     if (merged.priceCents == null) delete merged.priceCents;
     if (merged.minNights == null) delete merged.minNights;
+    if (!merged.blocked) delete merged.blocked;
+    if (merged.allowedArrivalWeekdays == null) delete merged.allowedArrivalWeekdays;
     if (JSON.stringify(existing) !== JSON.stringify(merged)) {
-      changed.push({ date, before: existing.priceCents ?? null, after: merged.priceCents ?? null });
+      changed.push({
+        date,
+        before: existing.priceCents ?? null,
+        after: merged.priceCents ?? null,
+        blockedBefore: !!existing.blocked,
+        blockedAfter: !!merged.blocked,
+      });
     }
     if (Object.keys(merged).length === 0) {
       delete next[date];

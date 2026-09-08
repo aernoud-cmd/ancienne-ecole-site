@@ -22,6 +22,14 @@
 </head>
 <body>
 
+<div class="wrap" style="display:flex; justify-content:flex-end; padding-bottom:10px;">
+  <div class="lang-switch" style="border-left:none; padding-left:0;">
+    <a href="../reserve.html">EN</a>
+    <a href="reserve.html" class="current">FR</a>
+    <a href="../nl/reserve.html">NL</a>
+  </div>
+</div>
+
 <div class="wrap booking-cols" style="display: flex; gap: 56px; align-items: flex-start; flex-wrap: wrap;">
   <div style="flex: 1.3; min-width: 320px;">
     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px;">
@@ -124,7 +132,7 @@
   (function () {
     function reportHeight() {
       var h = document.documentElement.scrollHeight;
-      window.parent.postMessage({ aeAncienneEcoleEmbedHeight: h }, "*");
+      window.parent.postMessage({ aeSource: "ae-booking-embed", aeAncienneEcoleEmbedHeight: h }, "*");
     }
     new MutationObserver(reportHeight).observe(document.body, { childList: true, subtree: true, attributes: true });
     window.addEventListener("load", reportHeight);

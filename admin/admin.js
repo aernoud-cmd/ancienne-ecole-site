@@ -1,7 +1,8 @@
 // Owner-only pricing/settings admin page. Talks to admin-login, admin-logout,
-// admin-pricing and admin-bookings (see netlify/functions/). Every data call
-// relies on the httpOnly session cookie those endpoints check themselves —
-// this file never handles the password beyond submitting the login form.
+// admin-pricing, admin-sync-airbnb and admin-bookings (see
+// netlify/functions/). Every data call relies on the httpOnly session cookie
+// those endpoints check themselves — this file never handles the password
+// beyond submitting the login form.
 (function () {
   const MONTH_NAMES = ["januari","februari","maart","april","mei","juni","juli","augustus","september","oktober","november","december"];
   const STATUS_LABELS = {
@@ -17,6 +18,13 @@
   let nightSources = {};
   let viewYear, viewMonth; // 0-indexed month
   let selStart = null, selEnd = null;
+  // true right after a click sets selStart but before the range is completed
+  // by a second click — this is what makes click 1 = "first night" and
+  // click 2 = "last night, inclusive" distinct from every click afterwards
+  // restarting a brand new selection (the old bug: every click restarted).
+  let awaitingSecondClick = false;
+  let formDirty = false; // true once the user has touched the price/min/blocked form since the last save
+  let saving = false; // double-submit guard
 
   function iso(y, m, d) {
     return `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
@@ -42,6 +50,11 @@
     const [y, m, d] = iso.split("-");
     return `${d}-${m}-${y}`;
   }
+  function fmtRelative(hoursAgo) {
+    if (hoursAgo == null) return "onbekend";
+    if (hoursAgo < 1) return `${Math.round(hoursAgo * 60)} min. geleden`;
+    return `${hoursAgo} uur geleden`;
+  }
 
   async function api(path, opts = {}) {
     const res = await fetch(`/.netlify/functions/${path}`, {
@@ -66,6 +79,25 @@
     document.getElementById("ae-app-screen").hidden = false;
   }
 
+  // ---- Unsaved-changes guard --------------------------------------------
+  // Two layers: (1) leaving/reloading the whole page while the form is dirty
+  // (native beforeunload prompt); (2) discarding the current selection (new
+  // range, cleared selection, or a stale admin tab silently reloading data)
+  // while dirty — a plain confirm() so it stays a deliberate choice, not a
+  // silent loss of typed-but-unsaved values.
+  window.addEventListener("beforeunload", (e) => {
+    if (!formDirty) return;
+    e.preventDefault();
+    e.returnValue = "";
+  });
+  function confirmDiscardIfDirty() {
+    if (!formDirty) return true;
+    return confirm("Je hebt niet-opgeslagen wijzigingen in het prijzenformulier. Toch doorgaan en deze wijzigingen verwerpen?");
+  }
+  function setDirty(v) {
+    formDirty = v;
+  }
+
   // ---- Login / logout ----------------------------------------------
 
   document.getElementById("ae-login-form").addEventListener("submit", async (e) => {
@@ -83,7 +115,9 @@
   });
 
   document.getElementById("ae-logout-btn").addEventListener("click", async () => {
+    if (!confirmDiscardIfDirty()) return;
     await api("admin-logout", { method: "POST" }).catch(() => {});
+    setDirty(false);
     showLogin();
   });
 
@@ -91,6 +125,8 @@
 
   document.querySelectorAll(".admin-tab").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (btn.classList.contains("active")) return;
+      if (!confirmDiscardIfDirty()) return;
       document.querySelectorAll(".admin-tab").forEach((b) => { b.classList.remove("active"); b.setAttribute("aria-selected", "false"); });
       btn.classList.add("active");
       btn.setAttribute("aria-selected", "true");
@@ -109,6 +145,7 @@
     rates = data.rates;
     nightSources = data.nightSources;
     renderSyncBanner(data.airbnbSync);
+    renderBuildBadge(data.buildInfo);
     renderCalendar();
     renderSettingsForm();
   }
@@ -141,28 +178,65 @@
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
+  function renderBuildBadge(buildInfo) {
+    const el = document.getElementById("ae-build-badge");
+    if (!el) return;
+    if (!buildInfo || (!buildInfo.commit && !buildInfo.deployId)) {
+      el.textContent = "";
+      return;
+    }
+    const shortCommit = buildInfo.commit ? buildInfo.commit.slice(0, 7) : "?";
+    el.textContent = `build ${shortCommit}${buildInfo.deployId ? " · deploy " + buildInfo.deployId.slice(0, 8) : ""}`;
+    el.title = `Commit ${buildInfo.commit || "onbekend"} — deploy ${buildInfo.deployId || "onbekend"}. Als je hier een oude commit ziet na een nieuwe deploy, is de pagina nog niet ververst.`;
+  }
+
   function renderSyncBanner(sync) {
     const el = document.getElementById("ae-sync-banner");
+    const btn = document.getElementById("ae-sync-now-btn");
     if (!sync) {
       el.hidden = true;
       return;
     }
     el.hidden = false;
+    const attempt = `Laatste synchronisatiepoging: ${fmtRelative(sync.attemptHoursAgo)}.`;
     if (sync.lastError) {
       el.className = "admin-banner warn";
-      el.textContent = `Airbnb-synchronisatie mislukt (${sync.lastErrorAt ? fmtDateNL(sync.lastErrorAt.slice(0,10)) : "onbekend"}): ${sync.lastError}. De laatst bekende Airbnb-data (${sync.nightCount} nachten) wordt intussen nog gebruikt.`;
+      el.innerHTML = `Airbnb-synchronisatie mislukt${sync.lastErrorAt ? " (" + fmtDateNL(sync.lastErrorAt.slice(0,10)) + ")" : ""}: ${escapeHtml(sync.lastError)}.<br>Laatst bekende, nog gebruikte Airbnb-data: ${sync.nightCount} nachten, succesvol gesynchroniseerd ${fmtRelative(sync.hoursAgo)}. ${attempt}`;
     } else if (sync.hoursAgo != null && sync.hoursAgo > 6) {
       el.className = "admin-banner warn";
-      el.textContent = `Airbnb-kalender is ${sync.hoursAgo} uur niet ververst — mogelijk verouderd. Normaal elke 3 uur.`;
+      el.textContent = `Airbnb-kalender is ${fmtRelative(sync.hoursAgo)} niet ververst — mogelijk verouderd. Normaal elke 3 uur. ${attempt}`;
     } else if (sync.hoursAgo != null) {
       el.className = "admin-banner ok";
-      el.textContent = `Airbnb-kalender laatst gesynchroniseerd: ${sync.hoursAgo} uur geleden (${sync.nightCount} nachten bezet).`;
+      el.textContent = `Airbnb-kalender laatst gesynchroniseerd: ${fmtRelative(sync.hoursAgo)} (${sync.nightCount} nachten bezet). ${attempt}`;
     } else {
       el.hidden = true;
     }
   }
 
+  document.getElementById("ae-sync-now-btn").addEventListener("click", async () => {
+    const btn = document.getElementById("ae-sync-now-btn");
+    const status = document.getElementById("ae-sync-now-status");
+    btn.disabled = true;
+    status.textContent = "Bezig met synchroniseren…";
+    try {
+      const { ok, data } = await api("admin-sync-airbnb", { method: "POST" });
+      if (!ok || !data.ok) {
+        status.textContent = `Synchronisatie mislukt: ${data.error || "onbekende fout"}.`;
+      } else {
+        status.textContent = `✓ Gesynchroniseerd: ${data.nightCount} nachten bezet gevonden.`;
+        await loadPricing();
+      }
+    } catch (e) {
+      if (e.message !== "not-authenticated") status.textContent = "Synchronisatie mislukt door een netwerkfout.";
+    } finally {
+      btn.disabled = false;
+      setTimeout(() => { status.textContent = ""; }, 8000);
+    }
+  });
+
   // ---- Calendar -----------------------------------------------------
+
+  const SOURCE_LABELS = { direct: "eigen boeking", requested: "aanvraag", airbnb: "Airbnb", blocked: "eigen blokkade" };
 
   function renderCalendar() {
     const label = document.getElementById("ae-cal-month-label");
@@ -182,19 +256,30 @@
       const isPast = dateISO < today;
       const rate = rates[dateISO];
       const hasPrice = rate && rate.priceCents;
+      const isBlocked = !!(rate && rate.blocked);
       const source = nightSources[dateISO];
       const inRange = selStart && selEnd && dateISO >= selStart && dateISO <= selEnd;
       const isEdge = dateISO === selStart || dateISO === selEnd;
+      const isPendingStart = selStart && !selEnd && awaitingSecondClick && dateISO === selStart;
       const classes = ["admin-day"];
       if (isPast) classes.push("past");
       if (!hasPrice) classes.push("no-price");
+      if (isBlocked) classes.push("blocked");
       if (inRange) classes.push("in-range");
-      if (isEdge) classes.push("range-edge");
-      html += `<div class="${classes.join(" ")}" data-date="${dateISO}" role="gridcell" tabindex="${isPast ? -1 : 0}" aria-label="${fmtDateNL(dateISO)}${hasPrice ? ", " + fmtEuro(rate.priceCents) : ", geen prijs"}${rate && rate.minNights ? ", minimum " + rate.minNights + " nachten" : ""}">
-        ${source ? `<span class="d-source ${source}"></span>` : ""}
+      if (isEdge || isPendingStart) classes.push("range-edge");
+      const ariaBits = [
+        fmtDateNL(dateISO),
+        hasPrice ? fmtEuro(rate.priceCents) : "geen prijs",
+        rate && rate.minNights ? `minimum ${rate.minNights} nachten` : "",
+        isBlocked ? "eigen blokkade" : "",
+        source ? SOURCE_LABELS[source] : "",
+      ].filter(Boolean).join(", ");
+      html += `<div class="${classes.join(" ")}" data-date="${dateISO}" role="gridcell" tabindex="${isPast ? -1 : 0}" aria-label="${ariaBits}" aria-pressed="${inRange || isPendingStart}">
+        ${source ? `<span class="d-source ${source}" aria-hidden="true"></span>` : ""}
         <span class="d-num">${d}</span>
         ${hasPrice ? `<span class="d-price">${fmtEuro(rate.priceCents)}</span>` : ""}
         ${rate && rate.minNights ? `<span class="d-min">min ${rate.minNights}n</span>` : ""}
+        ${isBlocked ? `<span class="d-blocked-mark" aria-hidden="true">✕</span>` : ""}
       </div>`;
     }
     grid.innerHTML = html;
@@ -209,37 +294,95 @@
     updateSelectionPanel();
   }
 
+  // The actual fix: click 1 sets the first night. Click 2 sets the last
+  // night (inclusive) — earlier or later than the first, either is fine, we
+  // just sort them. Once a range is complete, the NEXT click starts a
+  // genuinely new selection (this is what "just restarts" used to do on
+  // every click, collapsing any 2+ night selection back to 1 night). This is
+  // deliberately a different action from the explicit "Selectie wissen"
+  // button below, which clears without picking a new date at all.
   function onDayClick(dateISO) {
-    if (!selStart || (selStart && selEnd) || dateISO < selStart) {
+    if (selStart && formDirty && !confirmDiscardIfDirty()) return;
+    if (!selStart || !awaitingSecondClick) {
+      // Starting a brand new selection (first-ever click, or the first click
+      // after a previous range was already completed).
       selStart = dateISO;
-      selEnd = dateISO; // single-day selection by default
-    } else if (dateISO === selStart) {
-      selEnd = dateISO;
+      selEnd = null;
+      awaitingSecondClick = true;
     } else {
-      selEnd = dateISO;
+      // Completing the range started by the previous click.
+      if (dateISO >= selStart) {
+        selEnd = dateISO;
+      } else {
+        selEnd = selStart;
+        selStart = dateISO;
+      }
+      awaitingSecondClick = false;
     }
+    setDirty(false);
     renderCalendar();
   }
 
+  document.getElementById("ae-clear-selection-btn").addEventListener("click", () => {
+    if (!confirmDiscardIfDirty()) return;
+    selStart = null;
+    selEnd = null;
+    awaitingSecondClick = false;
+    setDirty(false);
+    renderCalendar();
+  });
+
+  document.getElementById("ae-date-range-apply-btn").addEventListener("click", () => {
+    const startVal = document.getElementById("ae-date-start-input").value;
+    const endVal = document.getElementById("ae-date-end-input").value;
+    const errEl = document.getElementById("ae-date-range-error");
+    errEl.textContent = "";
+    if (!startVal) { errEl.textContent = "Vul minstens de eerste nacht in."; return; }
+    const end = endVal || startVal;
+    if (end < startVal) { errEl.textContent = "De laatste nacht kan niet vóór de eerste nacht liggen."; return; }
+    if (!confirmDiscardIfDirty()) return;
+    selStart = startVal;
+    selEnd = end;
+    awaitingSecondClick = false;
+    setDirty(false);
+    viewYear = Number(startVal.slice(0, 4));
+    viewMonth = Number(startVal.slice(5, 7)) - 1;
+    renderCalendar();
+  });
+
   function updateSelectionPanel() {
     const summary = document.getElementById("ae-selection-summary");
-    const priceBtn = document.getElementById("ae-set-price-btn");
-    const clearPriceBtn = document.getElementById("ae-clear-price-btn");
-    const minBtn = document.getElementById("ae-set-min-nights-btn");
-    const clearMinBtn = document.getElementById("ae-clear-min-nights-btn");
+    const form = document.getElementById("ae-period-form");
+    const dateStartInput = document.getElementById("ae-date-start-input");
+    const dateEndInput = document.getElementById("ae-date-end-input");
 
     if (!selStart) {
       summary.textContent = "Nog geen datums geselecteerd.";
-      [priceBtn, clearPriceBtn, minBtn, clearMinBtn].forEach((b) => (b.disabled = true));
+      form.hidden = true;
+      dateStartInput.value = "";
+      dateEndInput.value = "";
       return;
     }
+
+    dateStartInput.value = selStart;
+    dateEndInput.value = selEnd || selStart;
+
+    if (!selEnd) {
+      // Mid-selection: first night chosen, waiting for the second click.
+      summary.innerHTML = `<b>Eerste nacht:</b> ${fmtDateNL(selStart)} — klik nu de <b>laatste nacht</b> (of dezelfde datum nogmaals voor één nacht).`;
+      form.hidden = true;
+      return;
+    }
+
     const dates = datesInclusive(selStart, selEnd);
+    form.hidden = false;
     if (dates.length === 1) {
       summary.innerHTML = `<b>1 nacht:</b> ${fmtDateNL(selStart)}`;
     } else {
-      summary.innerHTML = `<b>${dates.length} nachten:</b> ${fmtDateNL(selStart)} t/m ${fmtDateNL(selEnd)} <span class="admin-dim">(laatste nacht: ${fmtDateNL(selEnd)} — de vertrekdag zelf, ${fmtDateNL(nextDay(selEnd))}, telt hier niet mee)</span>`;
+      summary.innerHTML = `<b>${dates.length} nachten:</b> <span class="admin-dim">Eerste nacht</span> ${fmtDateNL(selStart)} t/m <span class="admin-dim">laatste nacht, inbegrepen</span> ${fmtDateNL(selEnd)} <span class="admin-dim">(de vertrekdag zelf, ${fmtDateNL(nextDay(selEnd))}, telt hier niet mee)</span>`;
     }
-    [priceBtn, clearPriceBtn, minBtn, clearMinBtn].forEach((b) => (b.disabled = false));
+
+    populatePeriodForm(dates);
   }
 
   function nextDay(dateISO) {
@@ -248,7 +391,180 @@
     return d.toISOString().slice(0, 10);
   }
 
-  // ---- Price / min-nights actions -------------------------------------
+  // ---- Combined price / min-stay / blocked save ------------------------
+  // One form, one "Wijzigingen opslaan" button, one POST — either all of the
+  // touched fields save together or nothing changes. Blank price/min-stay =
+  // "leave as-is"; the explicit checkboxes are the only way to actually
+  // clear a value, so a blank field can never be silently misread as "clear".
+
+  const WEEKDAY_NAMES = ["Ma","Di","Wo","Do","Vr","Za","Zo"];
+  let arrivalDaysChecksBuilt = false;
+  function ensureArrivalDaysCheckboxes() {
+    if (arrivalDaysChecksBuilt) return;
+    const el = document.getElementById("ae-arrival-days-checks");
+    if (!el) return;
+    el.innerHTML = WEEKDAY_NAMES.map((d, i) => `<label style="display:flex;align-items:center;gap:4px;font-size:13px;"><input type="checkbox" class="ae-arrival-day-cb" value="${i+1}">${d}</label>`).join("");
+    arrivalDaysChecksBuilt = true;
+  }
+  document.getElementById("ae-arrival-days-select").addEventListener("change", (e) => {
+    document.getElementById("ae-arrival-days-checks").hidden = e.target.value !== "custom";
+    setDirty(true);
+    updateSaveButtonState();
+  });
+
+  function currentFieldState(dates) {
+    const priceValues = dates.map((d) => rates[d]?.priceCents ?? null);
+    const minValues = dates.map((d) => rates[d]?.minNights ?? null);
+    const blockedValues = dates.map((d) => !!rates[d]?.blocked);
+    const arrivalValues = dates.map((d) => JSON.stringify(rates[d]?.allowedArrivalWeekdays ?? null));
+    const uniform = (arr) => arr.every((v) => v === arr[0]);
+    return {
+      price: { uniform: uniform(priceValues), value: priceValues[0] },
+      minNights: { uniform: uniform(minValues), value: minValues[0] },
+      blocked: { uniform: uniform(blockedValues), value: blockedValues[0] },
+      allowedArrivalWeekdays: { uniform: uniform(arrivalValues), value: dates[0] ? (rates[dates[0]]?.allowedArrivalWeekdays ?? null) : null },
+    };
+  }
+
+  function populatePeriodForm(dates) {
+    ensureArrivalDaysCheckboxes();
+    const state = currentFieldState(dates);
+    const priceInput = document.getElementById("ae-price-input");
+    const priceClear = document.getElementById("ae-price-clear-cb");
+    const minInput = document.getElementById("ae-min-nights-input");
+    const minClear = document.getElementById("ae-min-clear-cb");
+    const blockedSelect = document.getElementById("ae-blocked-select");
+    const arrivalSelect = document.getElementById("ae-arrival-days-select");
+    const arrivalChecks = document.getElementById("ae-arrival-days-checks");
+    const statusLine = document.getElementById("ae-period-current-status");
+
+    arrivalSelect.value = "";
+    arrivalChecks.hidden = true;
+    document.querySelectorAll(".ae-arrival-day-cb").forEach((cb) => (cb.checked = false));
+
+    priceInput.value = state.price.uniform && state.price.value != null ? (state.price.value / 100).toFixed(2) : "";
+    priceInput.placeholder = state.price.uniform ? (state.price.value == null ? "Geen prijs ingesteld" : "") : "Gemengd — leeg laten = ongewijzigd";
+    priceClear.checked = false;
+
+    minInput.value = state.minNights.uniform && state.minNights.value != null ? state.minNights.value : "";
+    minInput.placeholder = state.minNights.uniform ? (state.minNights.value == null ? `Standaard (${settings.defaultMinNights})` : "") : "Gemengd — leeg laten = ongewijzigd";
+    minClear.checked = false;
+
+    blockedSelect.value = ""; // always default to "ongewijzigd laten" — see below for why
+
+    const priceText = !state.price.uniform ? "Gemengd" : state.price.value != null ? fmtEuro(state.price.value) : "geen prijs ingesteld";
+    const minText = !state.minNights.uniform ? "Gemengd" : state.minNights.value != null ? `${state.minNights.value} nachten` : `standaard (${settings.defaultMinNights})`;
+    const blockedText = !state.blocked.uniform ? "Gemengd" : state.blocked.value ? "geblokkeerd" : "niet geblokkeerd";
+    const arrivalText = !state.allowedArrivalWeekdays.uniform
+      ? "Gemengd"
+      : state.allowedArrivalWeekdays.value
+        ? state.allowedArrivalWeekdays.value.map((n) => WEEKDAY_NAMES[n - 1]).join("/")
+        : "site-brede instelling";
+    statusLine.innerHTML = `<b>Huidige waarden:</b> prijs ${priceText} · minimumverblijf ${minText} · ${blockedText} · aankomstdagen: ${arrivalText}`;
+
+    setDirty(false);
+    updateSaveButtonState();
+  }
+
+  [
+    ["ae-price-input", "input"],
+    ["ae-price-clear-cb", "change"],
+    ["ae-min-nights-input", "input"],
+    ["ae-min-clear-cb", "change"],
+    ["ae-blocked-select", "change"],
+  ].forEach(([id, evt]) => {
+    document.getElementById(id).addEventListener(evt, () => {
+      setDirty(true);
+      updateSaveButtonState();
+    });
+  });
+
+  document.getElementById("ae-price-clear-cb").addEventListener("change", (e) => {
+    document.getElementById("ae-price-input").disabled = e.target.checked;
+  });
+  document.getElementById("ae-min-clear-cb").addEventListener("change", (e) => {
+    document.getElementById("ae-min-nights-input").disabled = e.target.checked;
+  });
+  document.getElementById("ae-arrival-days-checks").addEventListener("change", (e) => {
+    if (!e.target.classList.contains("ae-arrival-day-cb")) return;
+    setDirty(true);
+    updateSaveButtonState();
+  });
+
+  function buildPeriodPatch() {
+    const priceVal = document.getElementById("ae-price-input").value;
+    const priceClear = document.getElementById("ae-price-clear-cb").checked;
+    const minVal = document.getElementById("ae-min-nights-input").value;
+    const minClear = document.getElementById("ae-min-clear-cb").checked;
+    const blockedChoice = document.getElementById("ae-blocked-select").value; // "" | "block" | "unblock"
+
+    const fields = {};
+    const errors = [];
+
+    if (priceClear) {
+      fields.priceCents = null;
+    } else if (priceVal !== "") {
+      const euros = Number(String(priceVal).replace(",", "."));
+      if (!Number.isFinite(euros) || euros <= 0) errors.push("Vul een prijs groter dan €0 in, of laat het veld leeg.");
+      else fields.priceCents = Math.round(euros * 100);
+    }
+
+    if (minClear) {
+      fields.minNights = null;
+    } else if (minVal !== "") {
+      const n = Number(minVal);
+      if (!Number.isInteger(n) || n < 1) errors.push("Vul een geheel aantal nachten (≥ 1) in voor het minimumverblijf, of laat het veld leeg.");
+      else fields.minNights = n;
+    }
+
+    if (blockedChoice === "block") fields.blocked = true;
+    else if (blockedChoice === "unblock") fields.blocked = false;
+
+    const arrivalChoice = document.getElementById("ae-arrival-days-select").value; // "" | "custom" | "clear"
+    if (arrivalChoice === "clear") {
+      fields.allowedArrivalWeekdays = null;
+    } else if (arrivalChoice === "custom") {
+      const days = Array.from(document.querySelectorAll(".ae-arrival-day-cb:checked")).map((c) => Number(c.value));
+      if (!days.length) errors.push("Vink minstens één aankomstdag aan, of kies \"Ongewijzigd laten\"/\"Terugzetten\".");
+      else fields.allowedArrivalWeekdays = days;
+    }
+
+    return { fields, errors };
+  }
+
+  function updateSaveButtonState() {
+    const btn = document.getElementById("ae-save-period-btn");
+    const { fields, errors } = buildPeriodPatch();
+    btn.disabled = saving || errors.length > 0 || Object.keys(fields).length === 0;
+  }
+
+  function describePatch(fields, nNights) {
+    const parts = [];
+    if ("priceCents" in fields) parts.push(fields.priceCents === null ? "prijs verwijderen (niet boekbaar maken)" : `nachtprijs instellen op ${fmtEuro(fields.priceCents)}`);
+    if ("minNights" in fields) parts.push(fields.minNights === null ? `minimumverblijf terugzetten naar standaard (${settings.defaultMinNights})` : `minimumverblijf instellen op ${fields.minNights} nacht(en)`);
+    if ("blocked" in fields) parts.push(fields.blocked ? "deze data blokkeren (niet boekbaar, eigen gebruik)" : "blokkade opheffen");
+    if ("allowedArrivalWeekdays" in fields) parts.push(fields.allowedArrivalWeekdays === null ? "aankomstdagen terugzetten naar de site-brede instelling" : `aankomst alleen toestaan op: ${fields.allowedArrivalWeekdays.map((n) => WEEKDAY_NAMES[n - 1]).join("/")}`);
+    return `Dit gaat voor ${nNights} nacht(en) (${fmtDateNL(selStart)} t/m ${fmtDateNL(selEnd)}): ${parts.join("; ")}. Alles wordt in één keer opgeslagen — of alles lukt, of er verandert niets. Doorgaan?`;
+  }
+
+  document.getElementById("ae-save-period-btn").addEventListener("click", () => {
+    const dates = datesInclusive(selStart, selEnd);
+    const { fields, errors } = buildPeriodPatch();
+    if (errors.length) { alert(errors.join("\n")); return; }
+    if (!Object.keys(fields).length) return;
+    showConfirm(describePatch(fields, dates.length), async () => {
+      if (saving) return;
+      saving = true;
+      updateSaveButtonState();
+      await savePatch(
+        { ratesPatch: Object.fromEntries(dates.map((d) => [d, fields])) },
+        (n) => `✓ ${n} datum(s) bijgewerkt.`
+      );
+      saving = false;
+      setDirty(false);
+      updateSaveButtonState();
+    });
+  });
 
   function showConfirm(text, onYes) {
     const box = document.getElementById("ae-confirm-box");
@@ -280,50 +596,6 @@
     }
     renderCalendar();
   }
-
-  document.getElementById("ae-set-price-btn").addEventListener("click", () => {
-    const val = document.getElementById("ae-price-input").value;
-    const euros = Number(String(val).replace(",", "."));
-    if (!Number.isFinite(euros) || euros <= 0) {
-      alert("Vul een prijs groter dan €0 in.");
-      return;
-    }
-    const cents = Math.round(euros * 100);
-    const dates = datesInclusive(selStart, selEnd);
-    showConfirm(
-      `Dit zet de nachtprijs van ${dates.length} datum(s) (${fmtDateNL(selStart)} t/m ${fmtDateNL(selEnd)}) op ${fmtEuro(cents)}. Doorgaan?`,
-      () => savePatch({ ratesPatch: Object.fromEntries(dates.map((d) => [d, { priceCents: cents }])) }, (n) => `✓ Nachtprijs van ${n} datum(s) ingesteld op ${fmtEuro(cents)}.`)
-    );
-  });
-
-  document.getElementById("ae-clear-price-btn").addEventListener("click", () => {
-    const dates = datesInclusive(selStart, selEnd);
-    showConfirm(
-      `Dit verwijdert de nachtprijs van ${dates.length} datum(s) — deze data worden weer NIET boekbaar. Doorgaan?`,
-      () => savePatch({ ratesPatch: Object.fromEntries(dates.map((d) => [d, { priceCents: null }])) }, (n) => `✓ Prijs van ${n} datum(s) verwijderd (niet boekbaar).`)
-    );
-  });
-
-  document.getElementById("ae-set-min-nights-btn").addEventListener("click", () => {
-    const val = Number(document.getElementById("ae-min-nights-input").value);
-    if (!Number.isInteger(val) || val < 1) {
-      alert("Vul een geheel aantal nachten (≥ 1) in.");
-      return;
-    }
-    const dates = datesInclusive(selStart, selEnd);
-    showConfirm(
-      `Dit zet het minimumverblijf van ${dates.length} datum(s) (${fmtDateNL(selStart)} t/m ${fmtDateNL(selEnd)}) op ${val} nacht(en). Dit geldt voor een boeking die op zo'n datum AANKOMT. Doorgaan?`,
-      () => savePatch({ ratesPatch: Object.fromEntries(dates.map((d) => [d, { minNights: val }])) }, (n) => `✓ Minimumverblijf van ${n} datum(s) ingesteld op ${val} nacht(en).`)
-    );
-  });
-
-  document.getElementById("ae-clear-min-nights-btn").addEventListener("click", () => {
-    const dates = datesInclusive(selStart, selEnd);
-    showConfirm(
-      `Dit zet het minimumverblijf van ${dates.length} datum(s) terug naar de standaardwaarde (${settings.defaultMinNights} nacht(en)). Doorgaan?`,
-      () => savePatch({ ratesPatch: Object.fromEntries(dates.map((d) => [d, { minNights: null }])) }, (n) => `✓ Minimumverblijf van ${n} datum(s) teruggezet naar standaard.`)
-    );
-  });
 
   document.getElementById("ae-cal-prev").addEventListener("click", () => { viewMonth--; if (viewMonth < 0) { viewMonth = 11; viewYear--; } renderCalendar(); });
   document.getElementById("ae-cal-next").addEventListener("click", () => { viewMonth++; if (viewMonth > 11) { viewMonth = 0; viewYear++; } renderCalendar(); });
@@ -400,6 +672,7 @@
           <div class="field"><label>Max. totaal aantal gasten</label><input class="input" type="number" min="1" id="s-cap-total" value="${s.capacity.maxTotalGuests}"></div>
           <div class="field"><label>Kind tot en met leeftijd</label><input class="input" type="number" min="0" id="s-cap-childage" value="${s.capacity.childMaxAge}"></div>
         </div>
+        <p class="admin-note">Geldige combinaties zijn er zolang volwassenen ≤ max. volwassenen, kinderen ≤ max. kinderen, én het totaal ≤ max. totaal aantal gasten. Dit geldt overal: beheer, boekingsformulier, prijsberekening en aanvraag.</p>
       </div>
 
       <div class="admin-settings-section">
@@ -414,7 +687,7 @@
           <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;">
             ${["Ma","Di","Wo","Do","Vr","Za","Zo"].map((d, i) => `<label style="display:flex;align-items:center;gap:4px;font-size:13px;"><input type="checkbox" class="s-arrival-day" value="${i+1}" ${(!s.allowedArrivalWeekdays || s.allowedArrivalWeekdays.includes(i+1)) ? "checked" : ""}>${d}</label>`).join("")}
           </div>
-          <p class="admin-note">Dit geldt voor de hele site (nog niet per periode instelbaar). Een minimumverblijf van bijv. 7 nachten betekent hier NIET automatisch dat aankomst alleen op zaterdag mag — vink dat hierboven expliciet aan als je dat wilt.</p>
+          <p class="admin-note">Dit geldt voor de hele site (nog niet per periode instelbaar — zie de opmerking hieronder). Een minimumverblijf van bijv. 7 nachten betekent hier NIET automatisch dat aankomst alleen op zaterdag mag — vink dat hierboven expliciet aan als je dat wilt. Minimumverblijf wordt bepaald door de AANKOMSTdatum: de nacht waarop een boeking begint bepaalt welk minimum geldt voor de hele boeking (zie de kalender hierboven voor datum-specifieke minima).</p>
         </div>
       </div>
 

@@ -4,8 +4,17 @@
 // place is what makes the expiry rule below apply consistently everywhere,
 // instead of five different endpoints each computing "busy" slightly
 // differently.
-import { getAirbnbBusyNights, listBookings } from "./store.mjs";
+import { getAirbnbBusyNights, listBookings, getAllRates } from "./store.mjs";
 import { nightsBetween, hoursSince } from "./dates.mjs";
+
+// Pure and unit-testable on its own: which dates the owner has explicitly
+// blocked from /admin (personal use, maintenance, etc.), independent of
+// whether a price happens to still be set on them. Kept separate from
+// "no price set" — those are two distinct reasons a date isn't bookable,
+// and /admin shows them as two distinct statuses.
+export function ownBlockedNightsFromRates(rates) {
+  return Object.keys(rates || {}).filter((d) => rates[d]?.blocked);
+}
 
 // A request's *effective* status accounts for expiry even before the
 // scheduled sweep (expire-bookings.mjs) has had a chance to persist it —
@@ -35,9 +44,10 @@ export function effectiveStatus(booking, settings, now = Date.now()) {
  *   out of the busy set (used when re-validating that booking itself)
  */
 export async function computeAvailability(settings, { strong = false, excludeBookingId = null } = {}) {
-  const [airbnbNights, bookings] = await Promise.all([
+  const [airbnbNights, bookings, rates] = await Promise.all([
     getAirbnbBusyNights({ strong }),
     listBookings({ strong }),
+    getAllRates({ strong }),
   ]);
   const now = Date.now();
   const withStatus = bookings.map((b) => ({ ...b, effectiveStatus: effectiveStatus(b, settings, now) }));
@@ -53,12 +63,15 @@ export async function computeAvailability(settings, { strong = false, excludeBoo
     }
   }
 
-  const busyNights = new Set([...airbnbNights, ...confirmedNights, ...pendingNights]);
+  const ownBlockedNights = new Set(ownBlockedNightsFromRates(rates));
+
+  const busyNights = new Set([...airbnbNights, ...confirmedNights, ...pendingNights, ...ownBlockedNights]);
 
   return {
     airbnbNights: new Set(airbnbNights),
     confirmedNights,
     pendingNights,
+    ownBlockedNights,
     busyNights,
     bookings: withStatus,
   };

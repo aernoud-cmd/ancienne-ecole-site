@@ -25,13 +25,17 @@ export default async (req) => {
 
   if (req.method === "GET") {
     const [settings, rates] = await Promise.all([getPricingSettings({ strong: true }), getAllRates({ strong: true })]);
-    const { airbnbNights, confirmedNights, pendingNights } = await computeAvailability(settings, { strong: true });
-    // Each busy night gets ONE source label, "direct" taking priority over
-    // "airbnb" — a night you confirmed directly will also show up in your
-    // own Airbnb export once Airbnb has imported confirmed.ics back, and
-    // this is what keeps the admin calendar from double-labeling that as a
-    // separate Airbnb booking (see README "Avoiding an import loop").
+    const { airbnbNights, confirmedNights, pendingNights, ownBlockedNights } = await computeAvailability(settings, { strong: true });
+    // Each busy night gets ONE source label. Priority (highest first):
+    // "direct" > "requested" > "airbnb" > "blocked". A night you confirmed
+    // directly will also show up in your own Airbnb export once Airbnb has
+    // imported confirmed.ics back, and this is what keeps the admin calendar
+    // from double-labeling that as a separate Airbnb booking (see README
+    // "Avoiding an import loop"). An owner-blocked night that's also part of
+    // a real booking should show as that booking, not as a generic block —
+    // hence "blocked" is applied first and can be overwritten by the others.
     const nightSources = {};
+    for (const n of ownBlockedNights) nightSources[n] = "blocked";
     for (const n of airbnbNights) nightSources[n] = "airbnb";
     for (const n of pendingNights) nightSources[n] = "requested";
     for (const n of confirmedNights) nightSources[n] = "direct";
@@ -43,13 +47,23 @@ export default async (req) => {
       nightSources,
       airbnbSync: syncMeta
         ? {
-            syncedAt: syncMeta.syncedAt,
+            syncedAt: syncMeta.syncedAt, // last SUCCESSFUL sync
             hoursAgo: syncMeta.syncedAt ? Math.round(hoursSince(syncMeta.syncedAt) * 10) / 10 : null,
+            lastAttemptAt: syncMeta.lastAttemptAt || syncMeta.syncedAt || null, // last attempt of any kind
+            attemptHoursAgo: syncMeta.lastAttemptAt ? Math.round(hoursSince(syncMeta.lastAttemptAt) * 10) / 10 : null,
             nightCount: syncMeta.nights?.length ?? 0,
             lastError: syncMeta.lastError || null,
             lastErrorAt: syncMeta.lastErrorAt || null,
           }
         : null,
+      // Surfaced as a small badge on /admin so it's obvious, without a hard
+      // refresh, which deploy is actually live — see netlify.toml/README
+      // "Cache busting". Netlify sets these automatically at build/runtime;
+      // both are null when running `netlify dev` locally.
+      buildInfo: {
+        commit: process.env.COMMIT_REF || null,
+        deployId: process.env.DEPLOY_ID || null,
+      },
     });
   }
 
@@ -99,6 +113,23 @@ export default async (req) => {
           } else {
             clean.minNights = fields.minNights;
           }
+        }
+        if ("blocked" in fields) {
+          if (typeof fields.blocked !== "boolean") {
+            rejected.push({ date, reason: "blocked must be true or false" });
+            continue;
+          }
+          clean.blocked = fields.blocked;
+        }
+        if ("allowedArrivalWeekdays" in fields) {
+          const w = fields.allowedArrivalWeekdays;
+          if (w !== null && (!Array.isArray(w) || !w.every((n) => Number.isInteger(n) && n >= 1 && n <= 7))) {
+            rejected.push({ date, reason: "allowedArrivalWeekdays must be null or an array of 1–7" });
+            continue;
+          }
+          // null = "use the site-wide setting" (this is the arrival date's
+          // own per-period override, not a change to that site-wide setting).
+          clean.allowedArrivalWeekdays = w;
         }
         if (Object.keys(clean).length) cleanPatch[date] = clean;
       }
