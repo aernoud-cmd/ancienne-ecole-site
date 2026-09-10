@@ -510,6 +510,19 @@
 
   const SOURCE_LABELS = { direct: "eigen boeking", requested: "aanvraag", airbnb: "Airbnb", blocked: "eigen blokkade" };
 
+  // A date is "occupied" — not available to guests — for any of four
+  // reasons (see nightSources in admin-pricing.mjs): a real Airbnb/direct/
+  // requested booking, OR the owner's own manual block. Used both to style
+  // the calendar cell and to warn when the current period selection
+  // includes such a date (selecting/pricing it here is an admin action —
+  // it never makes the date bookable by guests; see the note above the
+  // calendar and the warning in updateSelectionPanel()).
+  function isDateOccupied(dateISO) {
+    const rate = rates[dateISO];
+    if (rate && rate.blocked) return true;
+    return !!nightSources[dateISO];
+  }
+
   function renderCalendar() {
     const label = document.getElementById("ae-cal-month-label");
     const grid = document.getElementById("ae-cal-grid");
@@ -530,12 +543,14 @@
       const hasPrice = rate && rate.priceCents;
       const isBlocked = !!(rate && rate.blocked);
       const source = nightSources[dateISO];
+      const occupied = isDateOccupied(dateISO);
       const inRange = selStart && selEnd && dateISO >= selStart && dateISO <= selEnd;
       const isEdge = dateISO === selStart || dateISO === selEnd;
       const isPendingStart = selStart && !selEnd && awaitingSecondClick && dateISO === selStart;
       const classes = ["admin-day"];
       if (isPast) classes.push("past");
       if (!hasPrice) classes.push("no-price");
+      if (occupied) classes.push("occupied");
       if (isBlocked) classes.push("blocked");
       if (inRange) classes.push("in-range");
       if (isEdge || isPendingStart) classes.push("range-edge");
@@ -545,6 +560,7 @@
         rate && rate.minNights ? `minimum ${rate.minNights} nachten` : "",
         isBlocked ? "eigen blokkade" : "",
         source ? SOURCE_LABELS[source] : "",
+        occupied ? "niet beschikbaar voor gasten" : "",
       ].filter(Boolean).join(", ");
       html += `<div class="${classes.join(" ")}" data-date="${dateISO}" role="gridcell" tabindex="${isPast ? -1 : 0}" aria-label="${ariaBits}" aria-pressed="${inRange || isPendingStart}">
         ${source ? `<span class="d-source ${source}" aria-hidden="true"></span>` : ""}
@@ -624,12 +640,14 @@
 
   function updateSelectionPanel() {
     const summary = document.getElementById("ae-selection-summary");
+    const occupancyNote = document.getElementById("ae-selection-occupancy-note");
     const form = document.getElementById("ae-period-form");
     const dateStartInput = document.getElementById("ae-date-start-input");
     const dateEndInput = document.getElementById("ae-date-end-input");
 
     if (!selStart) {
       summary.textContent = "Nog geen datums geselecteerd.";
+      occupancyNote.hidden = true;
       form.hidden = true;
       dateStartInput.value = "";
       dateEndInput.value = "";
@@ -642,6 +660,7 @@
     if (!selEnd) {
       // Mid-selection: first night chosen, waiting for the second click.
       summary.innerHTML = `<b>Eerste nacht:</b> ${fmtDateNL(selStart)} — klik nu de <b>laatste nacht</b> (of dezelfde datum nogmaals voor één nacht).`;
+      occupancyNote.hidden = true;
       form.hidden = true;
       return;
     }
@@ -652,6 +671,24 @@
       summary.innerHTML = `<b>1 nacht:</b> ${fmtDateNL(selStart)}`;
     } else {
       summary.innerHTML = `<b>${dates.length} nachten:</b> <span class="admin-dim">Eerste nacht</span> ${fmtDateNL(selStart)} t/m <span class="admin-dim">laatste nacht, inbegrepen</span> ${fmtDateNL(selEnd)} <span class="admin-dim">(de vertrekdag zelf, ${fmtDateNL(nextDay(selEnd))}, telt hier niet mee)</span>`;
+    }
+
+    // Selecting/pricing a date here is purely an admin action on this
+    // period's own settings — it never makes an occupied date bookable by
+    // guests (that's decided solely by actual occupancy, see
+    // isDateOccupied()). Warn explicitly whenever the current selection
+    // overlaps one or more such dates, so this is never mistaken for "these
+    // dates are now available".
+    const occupiedDates = dates.filter(isDateOccupied);
+    if (occupiedDates.length) {
+      occupancyNote.hidden = false;
+      const plural = occupiedDates.length === 1 ? "nacht is" : "nachten zijn";
+      const list = occupiedDates.length <= 6
+        ? occupiedDates.map(fmtDateNL).join(", ")
+        : `${occupiedDates.slice(0, 6).map(fmtDateNL).join(", ")}, …`;
+      occupancyNote.innerHTML = `⚠ ${occupiedDates.length} van de ${dates.length} geselecteerde ${plural} <b>niet beschikbaar voor gasten</b> (bezet of geblokkeerd): ${list}. Hier iets opslaan wijzigt alleen prijs/instellingen — het maakt deze data niet boekbaar. Pas de bezetting zelf (Airbnb-sync, boekingen, eigen blokkade) wijzigt dat.`;
+    } else {
+      occupancyNote.hidden = true;
     }
 
     populatePeriodForm(dates);

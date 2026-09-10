@@ -50,7 +50,15 @@ body { padding: 0; }
 .admin-day .d-min { font-size: 8.5px; color: var(--text-dim); }
 .admin-day.no-price .d-num { color: var(--text-dim); }
 .admin-day.no-price { border-style: dashed; }
-.admin-day.blocked { background: repeating-linear-gradient(135deg, var(--bg-panel2), var(--bg-panel2) 6px, rgba(217,140,140,0.15) 6px, rgba(217,140,140,0.15) 12px); }
+/* .occupied = not available to guests for ANY reason (Airbnb, a direct
+   booking, an unanswered request, or the owner's own block) — applied
+   regardless of whether a price is also set, so a priced-but-occupied day
+   never reads as an ordinary bookable day. .blocked layers the ✕ mark on
+   top specifically for the owner's own manual block (a distinct reason
+   from being occupied by an actual booking/Airbnb sync). Cells stay
+   selectable/clickable either way — see the admin-note above the calendar. */
+.admin-day.occupied { background: repeating-linear-gradient(135deg, var(--bg-panel2), var(--bg-panel2) 6px, rgba(217,140,140,0.15) 6px, rgba(217,140,140,0.15) 12px); }
+.admin-day.occupied .d-price { opacity: 0.55; }
 .admin-day .d-blocked-mark { position: absolute; bottom: 2px; left: 3px; font-size: 8px; color: #d98c8c; }
 .admin-day.in-range { background: rgba(201,167,105,0.28); }
 .admin-day.range-edge { background: var(--gold); }
