@@ -148,6 +148,7 @@ export async function patchRates(patch) {
     if (merged.priceCents == null) delete merged.priceCents;
     if (merged.minNights == null) delete merged.minNights;
     if (!merged.blocked) delete merged.blocked;
+    if (!merged.saturdayTurnover) delete merged.saturdayTurnover;
     if (merged.allowedArrivalWeekdays == null) delete merged.allowedArrivalWeekdays;
     if (JSON.stringify(existing) !== JSON.stringify(merged)) {
       changed.push({

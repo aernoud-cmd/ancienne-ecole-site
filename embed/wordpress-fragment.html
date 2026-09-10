@@ -31,15 +31,16 @@
      (event.source === the iframe's own contentWindow), not merely from the
      right origin — relevant if this fragment is ever pasted more than once
      on the same page.
-   - Payment is NEVER expected to happen inside this iframe: after a guest
-     sends a request here, Aernoud approves it personally and a secure
-     Stripe payment LINK is emailed to the guest directly — the guest opens
-     that link in their own mail client/browser, completely outside
-     WordPress and outside this iframe. There is nothing to configure here
-     for that step; it's a structural property of how the module works, not
-     something this fragment needs to handle. (Stripe's own checkout also
-     refuses to render inside an iframe on other sites, so this is the only
-     approach that would work regardless.)
+   - Payment is NEVER expected to happen inside this iframe: once a guest
+     fills in their dates and details here, they're taken straight to
+     Stripe's own hosted Checkout page — a full-page redirect, completely
+     outside WordPress and outside this iframe — and their booking is
+     confirmed the instant that payment succeeds (no owner approval step in
+     between any more). There is nothing to configure here for that step;
+     it's a structural property of how the module works, not something this
+     fragment needs to handle. (Stripe's own checkout also refuses to render
+     inside an iframe on other sites, so this is the only approach that
+     would work regardless.)
    - Tested at 360px, 390px, 656px (the observed real WordPress column
      width) and full desktop width: no horizontal overflow, no clipped
      buttons, no double scrollbar (see the project doc for the exact
@@ -50,7 +51,7 @@
 <div style="max-width: 1100px; margin: 0 auto;">
   <iframe
     id="ae-booking-iframe"
-    title="L'Ancienne École — availability and booking request"
+    title="L'Ancienne École — availability and booking"
     src="https://ancienne-ecole-troche.netlify.app/embed/reserve.html"
     style="width: 100%; border: 0; display: block; overflow: hidden;"
     height="900"
@@ -62,7 +63,7 @@
 <div style="max-width: 1100px; margin: 0 auto;">
   <iframe
     id="ae-booking-iframe"
-    title="L'Ancienne École — disponibilités et demande de réservation"
+    title="L'Ancienne École — disponibilités et réservation"
     src="https://ancienne-ecole-troche.netlify.app/embed/fr/reserve.html"
     style="width: 100%; border: 0; display: block; overflow: hidden;"
     height="900"
@@ -75,7 +76,7 @@
 <div style="max-width: 1100px; margin: 0 auto;">
   <iframe
     id="ae-booking-iframe"
-    title="L'Ancienne École — beschikbaarheid en boekingsaanvraag"
+    title="L'Ancienne École — beschikbaarheid en boeking"
     src="https://ancienne-ecole-troche.netlify.app/embed/nl/reserve.html"
     style="width: 100%; border: 0; display: block; overflow: hidden;"
     height="900"

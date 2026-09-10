@@ -22,7 +22,7 @@ import { computeAvailability } from "./_lib/availability.mjs";
 import { isValidISODate, nightsBetween } from "./_lib/dates.mjs";
 import { createCheckoutSession } from "./_lib/stripe.mjs";
 import { siteBaseUrl } from "./_lib/notify.mjs";
-import { calculateQuote, QuoteError } from "./_lib/pricing.mjs";
+import { calculateQuote, derivePartySize, QuoteError } from "./_lib/pricing.mjs";
 import { CURRENT_TERMS_VERSION } from "./_lib/terms.mjs";
 
 export default async (req) => {
@@ -37,7 +37,12 @@ export default async (req) => {
     return json({ ok: false, error: "Invalid JSON body" }, 400);
   }
 
-  const { checkin, checkout, adults, children, name, email, phone, message, lang, termsAccepted } = body || {};
+  // "Aantal personen" (total) + "waarvan kinderen onder 18 jaar" — the guest
+  // form's own input model (see assets/booking.js). Adults is derived and
+  // re-validated below server-side, never trusted from the client — see
+  // _lib/pricing.mjs derivePartySize(). `totalGuests` is the only name this
+  // endpoint accepts now; there is no separate "adults" field in the request.
+  const { checkin, checkout, totalGuests, children, name, email, phone, message, lang, termsAccepted } = body || {};
 
   if (!isValidISODate(checkin) || !isValidISODate(checkout)) {
     return json({ ok: false, error: "Invalid dates" }, 400);
@@ -45,8 +50,6 @@ export default async (req) => {
   if (checkin >= checkout) {
     return json({ ok: false, error: "Check-out must be after check-in" }, 400);
   }
-  const nAdults = Number(adults);
-  const nChildren = Number(children) || 0;
   if (!name || !email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return json({ ok: false, error: "Please provide a valid name and email" }, 400);
   }
@@ -64,25 +67,31 @@ export default async (req) => {
     getAllRates({ strong: true }),
   ]);
 
+  // Re-check availability server-side, with a strongly-consistent read —
+  // never trust the client's calendar state. This also checks against every
+  // OTHER booking currently "awaiting_payment" (someone else mid-Checkout
+  // right now), which is exactly what stops two guests from both paying for
+  // the same nights. Fetched BEFORE calculateQuote (not just re-used after)
+  // so the exactly-4-free-nights-between-two-bookings exception (see
+  // _lib/pricing.mjs) can be evaluated with real, current busy-night data —
+  // then reused as-is for the full-range check right below, rather than
+  // reading availability twice.
+  const { busyNights } = await computeAvailability(settings, { strong: true });
+  const nights = nightsBetween(checkin, checkout);
+
   // Price + business-rule validation (capacity, minimum stay, allowed
   // arrival day, Saturday-turnover weeks, missing rates) — all in one
   // place, see _lib/pricing.mjs.
-  let quote;
+  let quote, nAdults, nChildren;
   try {
-    quote = calculateQuote({ checkin, checkout, adults: nAdults, children: nChildren }, settings, rates);
+    ({ adults: nAdults, children: nChildren } = derivePartySize({ totalGuests, children }));
+    quote = calculateQuote({ checkin, checkout, adults: nAdults, children: nChildren }, settings, rates, { busyNights });
   } catch (e) {
     if (e instanceof QuoteError) return json({ ok: false, code: e.code, details: e.details }, 409);
     console.error("book.mjs: quote calculation failed:", e);
     return json({ ok: false, error: "Could not calculate a price for those dates" }, 500);
   }
 
-  // Re-check availability server-side, with a strongly-consistent read —
-  // never trust the client's calendar state. This also checks against every
-  // OTHER booking currently "awaiting_payment" (someone else mid-Checkout
-  // right now), which is exactly what stops two guests from both paying for
-  // the same nights.
-  const { busyNights } = await computeAvailability(settings, { strong: true });
-  const nights = nightsBetween(checkin, checkout);
   if (nights.some((n) => busyNights.has(n))) {
     return json({ ok: false, code: "DATES_UNAVAILABLE" }, 409);
   }

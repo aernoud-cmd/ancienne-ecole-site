@@ -133,6 +133,13 @@ export default async (req) => {
           }
           clean.blocked = fields.blocked;
         }
+        if ("saturdayTurnover" in fields) {
+          if (typeof fields.saturdayTurnover !== "boolean") {
+            rejected.push({ date, reason: "saturdayTurnover must be true or false" });
+            continue;
+          }
+          clean.saturdayTurnover = fields.saturdayTurnover;
+        }
         if ("allowedArrivalWeekdays" in fields) {
           const w = fields.allowedArrivalWeekdays;
           if (w !== null && (!Array.isArray(w) || !w.every((n) => Number.isInteger(n) && n >= 1 && n <= 7))) {

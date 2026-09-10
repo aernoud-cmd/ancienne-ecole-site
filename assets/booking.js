@@ -37,28 +37,33 @@
       fillNameEmail: "Please fill in your name and a valid email address.",
       rangeUnavailable: "Some of the nights in that range are already booked or requested. Please pick different dates.",
       pricePrompt: "Select your dates to see the price.",
-      priceError: "Couldn't load the price just now — you can still send your request; we'll confirm the exact amount.",
-      rent: (n) => `${n} night${n === 1 ? "" : "s"} rent`,
+      priceError: "Couldn't load the price just now — you can still continue to secure payment; the exact amount will be confirmed there.",
+      rentGroup: (n, rate) => `${n} night${n === 1 ? "" : "s"} × ${rate}`,
       linen: (n, amt) => `Linen (${n} guests × ${amt})`,
       linenPerWeek: (n, weeks, amt) => `Linen (${n} guests × ${weeks} week${weeks === 1 ? "" : "s"} × ${amt})`,
       cleaning: "Final cleaning",
       tax: "Tourist tax",
       total: "Total (stay)",
       deposit: "Refundable security deposit (separate)",
-      totalWithDeposit: "Charged via payment link",
+      totalWithDeposit: "Charged now via Stripe",
       discountWeek: "Weekly discount",
       discountMonth: "Monthly discount",
       rentAfterDiscount: "Rent after discount",
+      partyComposition: (adults, children, total) => children ? `${total} people: ${adults} adult${adults === 1 ? "" : "s"} + ${children} child${children === 1 ? "" : "ren"}` : `${total} adult${total === 1 ? "" : "s"}`,
       taxNoteFixed: (amt, adults, nights) => `${amt} per adult per night × ${adults} adult${adults === 1 ? "" : "s"} × ${nights} night${nights === 1 ? "" : "s"}. Children are exempt.`,
       taxNotePercent: (pct) => `${pct}% of the (discounted) nightly rate per adult. Children are exempt.`,
-      depositNote: "Charged together with the stay total via the same secure payment link, then refunded by bank transfer after check-out once the house has been checked.",
+      depositNote: "Charged together with the stay total via Stripe Checkout, then refunded by bank transfer after check-out once the house has been checked.",
+      fourNightGapNotice: "Exception: these 4 nights are the whole gap between two other bookings, so they're bookable together even though this period normally requires at least 5 nights.",
       minNights: (n) => `This period requires a minimum stay of ${n} nights.`,
       rateMissing: "Some of the selected nights aren't open for booking yet. Please try different dates or contact us.",
       dateBlocked: "One of the selected dates is not available. Please try different dates.",
       capacityExceeded: (max) => `This stay allows at most ${max.maxAdults} adults and ${max.maxChildren} children (${max.maxTotalGuests} guests total).`,
       capacityWarning: (max) => `That's more guests than this stay allows: at most ${max.maxAdults} adults, ${max.maxChildren} children, ${max.maxTotalGuests} guests in total. Please adjust the numbers above.`,
+      childrenExceedTotal: "The number of children can't be more than the total number of people.",
       arrivalDayNotAllowed: "Stays can't start on that day of the week. Please pick a different check-in date.",
       saturdayTurnoverRequired: "During this period, stays must both start and end on a Saturday. Please adjust your check-in and/or check-out date.",
+      dayHighSeasonWeekday: "high season — Saturdays only",
+      highSeasonHint: "During high season, stays can only start and end on a Saturday (minimum 7 nights). Lighter-highlighted Saturdays below are valid check-in dates.",
       availabilityErrorTitle: "Couldn't check availability",
       availabilityErrorBody: "We couldn't reliably load the calendar just now, so no dates can be selected — we'd rather show nothing than risk showing a date as free when it might not be.",
       retry: "Try again",
@@ -98,28 +103,33 @@
       fillNameEmail: "Merci de renseigner votre nom et une adresse e-mail valide.",
       rangeUnavailable: "Certaines nuits de cette période sont déjà réservées ou en demande. Merci de choisir d'autres dates.",
       pricePrompt: "Sélectionnez vos dates pour voir le prix.",
-      priceError: "Impossible de charger le prix pour le moment — vous pouvez tout de même envoyer votre demande, nous confirmerons le montant exact.",
-      rent: (n) => `Location (${n} nuit${n === 1 ? "" : "s"})`,
+      priceError: "Impossible de charger le prix pour le moment — vous pouvez tout de même continuer vers le paiement sécurisé ; le montant exact y sera confirmé.",
+      rentGroup: (n, rate) => `${n} nuit${n === 1 ? "" : "s"} × ${rate}`,
       linen: (n, amt) => `Linge de maison (${n} pers. × ${amt})`,
       linenPerWeek: (n, weeks, amt) => `Linge de maison (${n} pers. × ${weeks} semaine${weeks === 1 ? "" : "s"} × ${amt})`,
       cleaning: "Ménage de fin de séjour",
       tax: "Taxe de séjour",
       total: "Total (séjour)",
       deposit: "Caution remboursable (séparée)",
-      totalWithDeposit: "Débité via le lien de paiement",
+      totalWithDeposit: "Débité maintenant via Stripe",
       discountWeek: "Réduction hebdomadaire",
       discountMonth: "Réduction mensuelle",
       rentAfterDiscount: "Location après réduction",
+      partyComposition: (adults, children, total) => children ? `${total} personnes : ${adults} adulte${adults === 1 ? "" : "s"} + ${children} enfant${children === 1 ? "" : "s"}` : `${total} adulte${total === 1 ? "" : "s"}`,
       taxNoteFixed: (amt, adults, nights) => `${amt} par adulte et par nuit × ${adults} adulte${adults === 1 ? "" : "s"} × ${nights} nuit${nights === 1 ? "" : "s"}. Les enfants en sont exonérés.`,
       taxNotePercent: (pct) => `${pct} % du tarif nocturne (après réduction) par adulte. Les enfants en sont exonérés.`,
-      depositNote: "Débitée en même temps que le total du séjour via le même lien de paiement sécurisé, puis remboursée par virement après le départ, une fois la maison vérifiée.",
+      depositNote: "Débitée en même temps que le total du séjour via Stripe Checkout, puis remboursée par virement après le départ, une fois la maison vérifiée.",
+      fourNightGapNotice: "Exception : ces 4 nuits comblent entièrement l'intervalle entre deux autres réservations, elles sont donc réservables ensemble même si cette période impose normalement un minimum de 5 nuits.",
       minNights: (n) => `Cette période impose un séjour minimum de ${n} nuits.`,
       rateMissing: "Certaines nuits sélectionnées ne sont pas encore ouvertes à la réservation. Essayez d'autres dates ou contactez-nous.",
       dateBlocked: "Une des dates sélectionnées n'est pas disponible. Merci de choisir d'autres dates.",
       capacityExceeded: (max) => `Ce séjour accepte au maximum ${max.maxAdults} adultes et ${max.maxChildren} enfants (${max.maxTotalGuests} personnes au total).`,
       capacityWarning: (max) => `C'est plus de personnes que ce séjour n'accepte : au maximum ${max.maxAdults} adultes, ${max.maxChildren} enfants, ${max.maxTotalGuests} personnes au total. Merci d'ajuster les nombres ci-dessus.`,
+      childrenExceedTotal: "Le nombre d'enfants ne peut pas dépasser le nombre total de personnes.",
       arrivalDayNotAllowed: "Les séjours ne peuvent pas commencer ce jour-là. Merci de choisir une autre date d'arrivée.",
       saturdayTurnoverRequired: "Pendant cette période, les séjours doivent commencer ET se terminer un samedi. Merci d'ajuster votre date d'arrivée et/ou de départ.",
+      dayHighSeasonWeekday: "haute saison — samedi uniquement",
+      highSeasonHint: "En haute saison, un séjour ne peut commencer et se terminer qu'un samedi (minimum 7 nuits). Les samedis en surbrillance plus claire ci-dessous sont des dates d'arrivée valables.",
       availabilityErrorTitle: "Impossible de vérifier les disponibilités",
       availabilityErrorBody: "Nous n'avons pas pu charger le calendrier de façon fiable — aucune date ne peut donc être sélectionnée pour l'instant : mieux vaut ne rien afficher que risquer de montrer une date comme libre alors qu'elle ne l'est peut-être pas.",
       retry: "Réessayer",
@@ -159,28 +169,33 @@
       fillNameEmail: "Vul je naam en een geldig e-mailadres in.",
       rangeUnavailable: "Sommige nachten in die periode zijn al geboekt of aangevraagd. Kies andere data.",
       pricePrompt: "Selecteer je data om de prijs te zien.",
-      priceError: "Kon de prijs nu niet ophalen — je kunt je aanvraag gewoon versturen, we bevestigen het exacte bedrag.",
-      rent: (n) => `Huur (${n} nacht${n === 1 ? "" : "en"})`,
+      priceError: "Kon de prijs nu niet ophalen — je kunt gewoon doorgaan naar de beveiligde betaling; het exacte bedrag wordt daar bevestigd.",
+      rentGroup: (n, rate) => `${n} nacht${n === 1 ? "" : "en"} × ${rate}`,
       linen: (n, amt) => `Linnengoed (${n} pers. × ${amt})`,
       linenPerWeek: (n, weeks, amt) => `Linnengoed (${n} pers. × ${weeks} we${weeks === 1 ? "ek" : "ken"} × ${amt})`,
       cleaning: "Eindschoonmaak",
       tax: "Toeristenbelasting",
       total: "Totaal (verblijf)",
       deposit: "Terugbetaalbare borg (apart)",
-      totalWithDeposit: "Afgerekend via betaallink",
+      totalWithDeposit: "Nu afgerekend via Stripe",
       discountWeek: "Weekkorting",
       discountMonth: "Maandkorting",
       rentAfterDiscount: "Huur na korting",
+      partyComposition: (adults, children, total) => children ? `${total} personen: ${adults} volwassene${adults === 1 ? "" : "n"} + ${children} kind${children === 1 ? "" : "eren"}` : `${total} volwassene${total === 1 ? "" : "n"}`,
       taxNoteFixed: (amt, adults, nights) => `${amt} per volwassene per nacht × ${adults} volwassene${adults === 1 ? "" : "n"} × ${nights} nacht${nights === 1 ? "" : "en"}. Kinderen zijn vrijgesteld.`,
       taxNotePercent: (pct) => `${pct}% van de nachtprijs (na korting) per volwassene. Kinderen zijn vrijgesteld.`,
-      depositNote: "Wordt samen met het totaalbedrag afgerekend via dezelfde beveiligde betaallink, en na vertrek per bankoverschrijving terugbetaald zodra het huis is gecontroleerd.",
+      depositNote: "Wordt samen met het totaalbedrag afgerekend via Stripe Checkout, en na vertrek per bankoverschrijving terugbetaald zodra het huis is gecontroleerd.",
+      fourNightGapNotice: "Uitzondering: deze 4 nachten vormen het volledige gat tussen twee andere boekingen, dus samen zijn ze boekbaar ook al geldt voor deze periode normaal een minimum van 5 nachten.",
       minNights: (n) => `Voor deze periode geldt een minimumverblijf van ${n} nachten.`,
       rateMissing: "Sommige geselecteerde nachten zijn nog niet open voor boeking. Probeer andere data of neem contact op.",
       dateBlocked: "Eén van de geselecteerde data is niet beschikbaar. Kies andere data.",
       capacityExceeded: (max) => `Dit verblijf biedt plaats aan maximaal ${max.maxAdults} volwassenen en ${max.maxChildren} kinderen (${max.maxTotalGuests} gasten totaal).`,
       capacityWarning: (max) => `Dat zijn meer gasten dan dit verblijf toestaat: maximaal ${max.maxAdults} volwassenen, ${max.maxChildren} kinderen, ${max.maxTotalGuests} gasten totaal. Pas de aantallen hierboven aan.`,
+      childrenExceedTotal: "Het aantal kinderen kan niet groter zijn dan het totaal aantal personen.",
       arrivalDayNotAllowed: "Een verblijf kan niet op die dag beginnen. Kies een andere aankomstdatum.",
       saturdayTurnoverRequired: "In deze periode moet een verblijf zowel op zaterdag beginnen als op zaterdag eindigen. Pas je aankomst- en/of vertrekdatum aan.",
+      dayHighSeasonWeekday: "hoogseizoen — alleen zaterdag",
+      highSeasonHint: "In het hoogseizoen kan een verblijf alleen op zaterdag beginnen en eindigen (minimaal 7 nachten). De lichter gemarkeerde zaterdagen hieronder zijn geldige aankomstdata.",
       availabilityErrorTitle: "Beschikbaarheid kon niet worden gecontroleerd",
       availabilityErrorBody: "We konden de kalender niet betrouwbaar laden, dus kunnen er nu geen data geselecteerd worden — dat is veiliger dan een datum als vrij tonen terwijl dat misschien niet zo is.",
       retry: "Opnieuw proberen",
@@ -223,6 +238,12 @@
   // distinct state for it (see availability.mjs: ownBlockedNights is a
   // subset of busyNights, never additional dates).
   let ownBlockedNights = new Set();
+  // Nights explicitly flagged from /admin as requiring a Saturday-to-
+  // Saturday stay (the explicit high-season window — see
+  // _lib/pricing.mjs/availability.mjs). NOT inferred from minNights. Used
+  // here purely to steer which dates the guest calendar offers as arrival/
+  // departure candidates — quote.mjs/book.mjs remain the real enforcement.
+  let saturdayTurnoverNights = new Set();
   let minNightsByDate = {};
   let defaultMinNights = 1;
   let capacity = { maxAdults: 8, maxChildren: 2, maxTotalGuests: 10 };
@@ -246,6 +267,13 @@
     return iso(t.getFullYear(), t.getMonth(), t.getDate());
   }
 
+  // Monday-first weekday index is used everywhere else in this file, but
+  // "Saturday" is simplest read straight off the JS Date (getUTCDay()===6)
+  // rather than translating through that offset twice.
+  function isSaturdayISO(dateISO) {
+    return new Date(dateISO + "T00:00:00Z").getUTCDay() === 6;
+  }
+
   function nightsInRange(startISO, endISO) {
     const nights = [];
     let cur = new Date(startISO + "T00:00:00Z");
@@ -259,6 +287,17 @@
 
   function rangeIsFree(startISO, endISO) {
     return nightsInRange(startISO, endISO).every((n) => !busyNights.has(n) && !noPriceNights.has(n));
+  }
+
+  // True when ANY night actually stayed between startISO (inclusive) and
+  // endISO (exclusive — checkout night itself is never "stayed", see
+  // nightsInRange) is flagged saturdayTurnover — mirrors calculateQuote()'s
+  // own needsSaturdayTurnover check in _lib/pricing.mjs, which looks at
+  // every night in the stay, not just the arrival date's own rate. A stay
+  // that starts in an ordinary period but extends into the high-season
+  // window still needs a Saturday check-in AND check-out.
+  function rangeNeedsSaturdayTurnover(startISO, endISO) {
+    return nightsInRange(startISO, endISO).some((n) => saturdayTurnoverNights.has(n));
   }
 
   // Fully written-out, localized date for the guest-facing check-in/
@@ -292,9 +331,9 @@
     const p = new URLSearchParams();
     if (selStart) p.set("checkin", selStart);
     if (selEnd) p.set("checkout", selEnd);
-    const adultsEl = document.getElementById("adults");
+    const totalEl = document.getElementById("total-guests");
     const childrenEl = document.getElementById("children");
-    if (adultsEl) p.set("adults", adultsEl.value);
+    if (totalEl) p.set("totalGuests", totalEl.value);
     if (childrenEl) p.set("children", childrenEl.value);
     return p;
   }
@@ -318,10 +357,10 @@
     const ci = p.get("checkin"), co = p.get("checkout");
     if (ci && /^\d{4}-\d{2}-\d{2}$/.test(ci)) selStart = ci;
     if (co && /^\d{4}-\d{2}-\d{2}$/.test(co)) selEnd = co;
-    const a = p.get("adults"), c = p.get("children");
-    const adultsEl = document.getElementById("adults");
+    const tg = p.get("totalGuests"), c = p.get("children");
+    const totalEl = document.getElementById("total-guests");
     const childrenEl = document.getElementById("children");
-    if (a && adultsEl) adultsEl.value = a;
+    if (tg && totalEl) totalEl.value = tg;
     if (c && childrenEl) childrenEl.value = c;
     if (selStart) {
       const d = new Date(selStart + "T00:00:00Z");
@@ -332,36 +371,53 @@
 
   // ---- Capacity-driven guest selects --------------------------------
 
+  // "Aantal personen" (total guests) + "waarvan kinderen onder 18 jaar"
+  // (of which children) — the guest-facing input model matches what
+  // quote.mjs/book.mjs now actually accept (see _lib/pricing.mjs
+  // derivePartySize()); there is no separate "adults" field anywhere in the
+  // form. The children select's own max is re-clamped to the current total
+  // guest count every time either select changes, so it's never possible to
+  // pick more children than people in the first place.
   function populateGuestSelects() {
-    const adultsEl = document.getElementById("adults");
+    const totalEl = document.getElementById("total-guests");
     const childrenEl = document.getElementById("children");
-    if (adultsEl) {
-      const prev = adultsEl.value;
-      adultsEl.innerHTML = "";
-      for (let i = 1; i <= capacity.maxAdults; i++) {
+    if (totalEl) {
+      const prev = totalEl.value;
+      totalEl.innerHTML = "";
+      for (let i = 1; i <= capacity.maxTotalGuests; i++) {
         const opt = document.createElement("option");
         opt.value = String(i);
         opt.textContent = String(i);
         if (String(i) === prev) opt.selected = true;
-        adultsEl.appendChild(opt);
+        totalEl.appendChild(opt);
       }
       if (!prev) {
-        const preferred = Math.min(4, capacity.maxAdults);
-        adultsEl.value = String(preferred);
+        const preferred = Math.min(4, capacity.maxTotalGuests);
+        totalEl.value = String(preferred);
       }
     }
-    if (childrenEl) {
-      const prev = childrenEl.value;
-      childrenEl.innerHTML = "";
-      for (let i = 0; i <= capacity.maxChildren; i++) {
-        const opt = document.createElement("option");
-        opt.value = String(i);
-        opt.textContent = String(i);
-        if (String(i) === prev) opt.selected = true;
-        childrenEl.appendChild(opt);
-      }
-    }
+    populateChildrenSelect();
     checkCapacity();
+  }
+
+  // Rebuilds the children select's option range (0..min(maxChildren,
+  // totalGuests)) without discarding a still-valid current value, and clamps
+  // it down when the total guest count just shrank below it.
+  function populateChildrenSelect() {
+    const totalEl = document.getElementById("total-guests");
+    const childrenEl = document.getElementById("children");
+    if (!childrenEl) return;
+    const total = totalEl ? Number(totalEl.value) || 1 : capacity.maxTotalGuests;
+    const maxChildren = Math.min(capacity.maxChildren, total);
+    const prev = childrenEl.value;
+    childrenEl.innerHTML = "";
+    for (let i = 0; i <= maxChildren; i++) {
+      const opt = document.createElement("option");
+      opt.value = String(i);
+      opt.textContent = String(i);
+      childrenEl.appendChild(opt);
+    }
+    childrenEl.value = Number(prev) <= maxChildren ? prev : String(maxChildren);
   }
 
   // Independent per-field maximums (adults 1..maxAdults, children
@@ -374,8 +430,8 @@
   function ensureCapacityWarningEl() {
     let el = document.getElementById("ae-capacity-warning");
     if (el) return el;
-    const adultsEl = document.getElementById("adults");
-    const row = adultsEl && adultsEl.closest(".form-grid-2");
+    const totalEl = document.getElementById("total-guests");
+    const row = totalEl && totalEl.closest(".form-grid-2");
     if (!row || !row.parentNode) return null;
     el = document.createElement("div");
     el.id = "ae-capacity-warning";
@@ -388,8 +444,18 @@
 
   function checkCapacity() {
     const el = ensureCapacityWarningEl();
-    const { adults, children } = getPartySize();
-    const invalid = adults + children > capacity.maxTotalGuests;
+    const { totalGuests, children, adults } = getPartySize();
+    // Mirrors calculateQuote()'s own CAPACITY_EXCEEDED check (see
+    // _lib/pricing.mjs) so the guest sees the same rule before ever sending
+    // a request, not just after a rejected quote. The selects themselves
+    // already keep totalGuests<=maxTotalGuests and children<=min(maxChildren,
+    // totalGuests) structurally — this also catches the derived-adults edge
+    // case (adults = totalGuests - children exceeding maxAdults).
+    const invalid =
+      totalGuests > capacity.maxTotalGuests ||
+      children > capacity.maxChildren ||
+      children > totalGuests ||
+      adults > capacity.maxAdults;
     if (el) {
       el.style.display = invalid ? "block" : "none";
       el.textContent = invalid ? STRINGS[lang].capacityWarning(capacity) : "";
@@ -498,7 +564,37 @@
       // reusing it here is what makes the click-gate match the logic that
       // already validates the actual selection.
       const isCandidateCheckout = !isPast && selStart && !selEnd && dateISO > selStart;
-      const validAsCheckout = isCandidateCheckout && rangeIsFree(selStart, dateISO);
+      // If any night the stay would actually cover requires Saturday
+      // turnover (high season — see rangeNeedsSaturdayTurnover above), both
+      // ends of the stay must be Saturdays, exactly like calculateQuote()'s
+      // own SATURDAY_TURNOVER_REQUIRED check. Outside high season (or for a
+      // stay that never reaches a flagged night) this is simply true and
+      // changes nothing.
+      const checkoutSpansHighSeason = isCandidateCheckout && rangeNeedsSaturdayTurnover(selStart, dateISO);
+      const validAsCheckout = isCandidateCheckout && rangeIsFree(selStart, dateISO) &&
+        (!checkoutSpansHighSeason || (isSaturdayISO(selStart) && isSaturdayISO(dateISO)));
+
+      // Whether this cell is being considered as a brand-new ARRIVAL pick
+      // (no selection yet, or restarting one) rather than as the checkout
+      // completing an in-progress selection — computed here (rather than
+      // only later) so both the style and the high-season gating below can
+      // use it.
+      const startingFresh = !selStart || selEnd || dateISO <= selStart;
+      // High season (Saturday-turnover): a night flagged from /admin means
+      // any stay touching it must start AND end on a Saturday. As an
+      // ARRIVAL candidate that means only Saturdays are offered at all —
+      // every other high-season day is shown but disabled, exactly per
+      // spec ("toon vooraf alleen geldige aankomstzaterdagen... overige
+      // hoogseizoendagen uitgeschakeld"). This only applies while picking a
+      // fresh arrival; once mid-selection, checkoutSpansHighSeason above is
+      // what actually governs which dates are valid checkouts.
+      const isHighSeasonNight = saturdayTurnoverNights.has(dateISO);
+      const highSeasonArrivalBlocked =
+        startingFresh && !isPast && !isBusy && !isPending && !isNoPrice && !isOwnBlocked &&
+        isHighSeasonNight && !isSaturdayISO(dateISO);
+      const highSeasonSaturdayArrival =
+        startingFresh && !isPast && !isBusy && !isPending && !isNoPrice && !isOwnBlocked &&
+        isHighSeasonNight && isSaturdayISO(dateISO);
 
       // Available/bookable days get the LIGHTEST fill of any state (see
       // --bg-available) so a free week visibly pops out of a mostly-
@@ -536,19 +632,33 @@
         style = "color: var(--text-dim); border: 1px dashed var(--line-strong); opacity: 0.55;";
         statusWord = t.dayNoPrice;
         if (validAsCheckout) style += "cursor:pointer;";
+      } else if (highSeasonArrivalBlocked) {
+        // Free, priced, otherwise-bookable night — just not a valid ARRIVAL
+        // during high season because it isn't a Saturday. Deliberately
+        // distinct from "booked"/"no price": dashed gold border rather than
+        // the rust "occupied" look, since nothing is actually wrong with the
+        // date itself, only with starting a stay on it.
+        style = "color: var(--text-dim); border: 1px dashed var(--gold-soft); opacity: 0.6;";
+        statusWord = t.dayHighSeasonWeekday;
       } else if (inSelectedRange) {
         style = "background: var(--gold); color: #1a1408; font-weight: 600; cursor:pointer;";
+      } else if (highSeasonSaturdayArrival) {
+        // "Iets lichter en aanklikbaar" — a valid high-season arrival
+        // Saturday: same available fill, but a gold outline calls it out
+        // among the disabled weekdays around it.
+        style = "border:1px solid var(--gold-soft);background:var(--bg-available);cursor:pointer;";
       }
 
       // Clickable as a NEW start (no active selection, or completing one
-      // already finished) requires a genuinely free arrival night. Clickable
+      // already finished) requires a genuinely free arrival night that
+      // isn't blocked by the high-season Saturday-only rule above. Clickable
       // as the CHECKOUT that completes an in-progress selection only needs
-      // every night strictly before it to be free — the departure date
+      // validAsCheckout (every interior night free, and both ends Saturday
+      // if the stay reaches a high-season night) — the departure date
       // itself, and whether it happens to have a price, is irrelevant (the
       // guest never stays that night). This is the fix for "can't select
       // checkout on the day the next guest arrives, or on an unpriced date".
-      const startingFresh = !selStart || selEnd || dateISO <= selStart;
-      const clickable = !isPast && (startingFresh ? (!isBusy && !isNoPrice) : validAsCheckout);
+      const clickable = !isPast && (startingFresh ? (!isBusy && !isNoPrice && !highSeasonArrivalBlocked) : validAsCheckout);
       const dateObj = new Date(dateISO + "T00:00:00Z");
       const weekday = WEEKDAY_ABBR[lang][(dateObj.getUTCDay() + 6) % 7];
       const edgeSuffix = isRangeEdge
@@ -666,6 +776,11 @@
       // field must still show a safe, correct (if slightly less detailed)
       // calendar rather than falling back to the fail-closed error banner.
       ownBlockedNights = new Set(Array.isArray(data.ownBlockedNights) ? data.ownBlockedNights : []);
+      // Same "must not break on an older/rolling deploy" reasoning as
+      // ownBlockedNights above — an absent field just means no high-season
+      // Saturday-turnover restriction is surfaced (every date behaves as it
+      // did before this feature existed), never a fail-closed error.
+      saturdayTurnoverNights = new Set(Array.isArray(data.saturdayTurnoverNights) ? data.saturdayTurnoverNights : []);
       minNightsByDate = data.minNightsByDate || {};
       if (data.defaultMinNights) defaultMinNights = data.defaultMinNights;
       capacity = data.capacity;
@@ -681,12 +796,15 @@
   }
 
   function getPartySize() {
-    const adultsEl = document.getElementById("adults");
+    const totalEl = document.getElementById("total-guests");
     const childrenEl = document.getElementById("children");
-    return {
-      adults: adultsEl ? Number(adultsEl.value) : 1,
-      children: childrenEl ? Number(childrenEl.value) : 0,
-    };
+    const totalGuests = totalEl ? Number(totalEl.value) : 1;
+    const children = childrenEl ? Number(childrenEl.value) : 0;
+    // Client-side mirror of derivePartySize() (_lib/pricing.mjs) purely for
+    // display/capacity-check purposes — the server derives and validates
+    // this itself from the same totalGuests/children pair, never trusting
+    // this value.
+    return { totalGuests, children, adults: Math.max(0, totalGuests - children) };
   }
 
   // Fetches the live price whenever dates or party size are complete, using
@@ -710,12 +828,12 @@
       return;
     }
 
-    const { adults, children } = getPartySize();
+    const { totalGuests, children } = getPartySize();
     const mySeq = ++quoteRequestSeq;
     breakdown.style.opacity = "0.5";
 
     try {
-      const params = new URLSearchParams({ checkin: selStart, checkout: selEnd, adults, children });
+      const params = new URLSearchParams({ checkin: selStart, checkout: selEnd, totalGuests, children });
       const res = await fetch(`/.netlify/functions/quote?${params.toString()}`);
       const data = await res.json();
       if (mySeq !== quoteRequestSeq) return; // a newer request has since started
@@ -742,7 +860,27 @@
     else if (data && data.code === "CAPACITY_EXCEEDED") msg = t.capacityExceeded(data.details);
     else if (data && data.code === "ARRIVAL_DAY_NOT_ALLOWED") msg = t.arrivalDayNotAllowed;
     else if (data && data.code === "SATURDAY_TURNOVER_REQUIRED") msg = t.saturdayTurnoverRequired;
+    else if (data && data.code === "CHILDREN_EXCEED_TOTAL") msg = t.childrenExceedTotal;
     breakdown.innerHTML = `<span style="color: #d98c8c;">${msg}</span>`;
+  }
+
+  // q.perNight is one {date, priceCents} entry per night booked (see
+  // _lib/pricing.mjs) — always in stay order. Grouping consecutive nights
+  // that share the exact same rate into a single "N nights × rate" row (per
+  // the nightly price breakdown by rate-period requirement) rather than one
+  // line per night, which would be unreadable for anything longer than a
+  // week and would also obscure a stay that spans a price change.
+  function groupPerNightRuns(perNight) {
+    const runs = [];
+    for (const n of perNight) {
+      const last = runs[runs.length - 1];
+      if (last && last.priceCents === n.priceCents) {
+        last.count++;
+      } else {
+        runs.push({ priceCents: n.priceCents, count: 1 });
+      }
+    }
+    return runs;
   }
 
   function renderPriceBreakdown(q) {
@@ -754,13 +892,19 @@
         <span>${label}</span><span>${value}</span>
       </div>`;
 
-    let html = row(t.rent(q.nights), fmtMoneyCents(q.rentalSubtotalCents, q.currency), { dim: true });
+    const totalGuests = q.adults + q.children;
+    let html = `<div style="font-size: 12.5px; color: var(--text-dim); margin-bottom: 8px;">${t.partyComposition(q.adults, q.children, totalGuests)}</div>`;
+    for (const run of groupPerNightRuns(q.perNight)) {
+      html += row(t.rentGroup(run.count, fmtMoneyCents(run.priceCents, q.currency)), fmtMoneyCents(run.priceCents * run.count, q.currency), { dim: true });
+    }
+    if (q.fourNightGapException) {
+      html += `<div style="font-size: 11.5px; color: var(--gold); margin: 2px 0 4px; padding-left: 2px; line-height: 1.5;">${t.fourNightGapNotice}</div>`;
+    }
     if (q.discountKind) {
       const label = q.discountKind === "month" ? t.discountMonth : t.discountWeek;
       html += row(`${label} (-${q.discountPercent}%)`, `-${fmtMoneyCents(q.discountAmountCents, q.currency)}`, { dim: true });
       html += row(t.rentAfterDiscount, fmtMoneyCents(q.rentalAfterDiscountCents, q.currency), { dim: true });
     }
-    const totalGuests = q.adults + q.children;
     const perPersonLinen = totalGuests > 0 ? q.linenFeeCents / (q.linenWeeks ? totalGuests * q.linenWeeks : totalGuests) : 0;
     const linenLabel = q.linenWeeks
       ? t.linenPerWeek(totalGuests, q.linenWeeks, fmtMoneyCents(perPersonLinen, q.currency))
@@ -815,11 +959,11 @@
       return false;
     }
 
-    const { adults, children } = getPartySize();
+    const { totalGuests, children } = getPartySize();
     const payload = {
       checkin: selStart,
       checkout: selEnd,
-      adults,
+      totalGuests,
       children,
       name,
       email,
@@ -848,6 +992,7 @@
         if (data.code === "CAPACITY_EXCEEDED") throw new Error(t.capacityExceeded(data.details));
         if (data.code === "ARRIVAL_DAY_NOT_ALLOWED") throw new Error(t.arrivalDayNotAllowed);
         if (data.code === "SATURDAY_TURNOVER_REQUIRED") throw new Error(t.saturdayTurnoverRequired);
+        if (data.code === "CHILDREN_EXCEED_TOTAL") throw new Error(t.childrenExceedTotal);
         if (data.code === "TERMS_NOT_ACCEPTED") throw new Error(t.termsRequired);
         throw new Error(data.error || t.errorGeneric);
       }
@@ -962,9 +1107,9 @@
       loadAvailability();
       checkPostRedirectStatus();
 
-      const adultsEl = document.getElementById("adults");
+      const totalEl = document.getElementById("total-guests");
       const childrenEl = document.getElementById("children");
-      if (adultsEl) adultsEl.addEventListener("change", refreshQuote);
+      if (totalEl) totalEl.addEventListener("change", () => { populateChildrenSelect(); checkCapacity(); refreshQuote(); });
       if (childrenEl) childrenEl.addEventListener("change", refreshQuote);
     },
     pickDate,

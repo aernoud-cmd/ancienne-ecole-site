@@ -60,6 +60,12 @@ body { padding: 0; }
 .admin-day.occupied { background: repeating-linear-gradient(135deg, var(--bg-panel2), var(--bg-panel2) 6px, rgba(217,140,140,0.15) 6px, rgba(217,140,140,0.15) 12px); }
 .admin-day.occupied .d-price { opacity: 0.55; }
 .admin-day .d-blocked-mark { position: absolute; bottom: 2px; left: 3px; font-size: 8px; color: #d98c8c; }
+/* .sat-turnover = this night requires a Saturday-to-Saturday stay (the
+   explicit high-season flag — see _lib/pricing.mjs). A thin gold top border
+   plus a small "Za" tag, independent of .occupied/.blocked so it reads
+   correctly whether the night is currently free or already booked. */
+.admin-day.sat-turnover { border-top: 3px solid var(--gold); }
+.admin-day .d-sat-mark { position: absolute; bottom: 2px; right: 3px; font-size: 7.5px; letter-spacing: 0.5px; color: var(--gold); }
 .admin-day.in-range { background: rgba(201,167,105,0.28); }
 .admin-day.range-edge { background: var(--gold); }
 .admin-day.range-edge .d-num, .admin-day.range-edge .d-price, .admin-day.range-edge .d-min { color: #1a1408; }

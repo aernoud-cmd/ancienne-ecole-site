@@ -42,6 +42,14 @@ export default async () => {
     }
   }
 
+  // Nights explicitly flagged from /admin as requiring Saturday-to-Saturday
+  // turnover (the explicit high-season rule — see _lib/pricing.mjs; this is
+  // NOT inferred from any particular minimum-stay value). Surfaced so the
+  // guest calendar can show only valid arrival Saturdays as selectable
+  // within such a period, instead of only finding out after the fact via a
+  // SATURDAY_TURNOVER_REQUIRED error from quote/book.
+  const saturdayTurnoverNights = allDates.filter((d) => rates[d]?.saturdayTurnover);
+
   return new Response(
     JSON.stringify({
       busyNights: Array.from(busyNights).sort(),
@@ -54,6 +62,7 @@ export default async () => {
       ownBlockedNights: Array.from(ownBlockedNights).sort(),
       noPriceNights,
       minNightsByDate,
+      saturdayTurnoverNights,
       capacity: settings.capacity,
       currency: settings.currency,
       defaultMinNights: settings.defaultMinNights,

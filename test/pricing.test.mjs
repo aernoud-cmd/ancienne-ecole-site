@@ -8,7 +8,7 @@
 // arrival-weekday restriction.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { calculateQuote, QuoteError } from "../netlify/functions/_lib/pricing.mjs";
+import { calculateQuote, derivePartySize, QuoteError } from "../netlify/functions/_lib/pricing.mjs";
 import { baseSettings, baseRates } from "./helpers.mjs";
 
 // node:assert's assert.throws() doesn't hand back the caught error, just a
@@ -293,26 +293,29 @@ test("changing settings afterwards does not affect a quote already computed (fro
   assert.equal(q.settingsSnapshot.weekDiscount.percent, 10);
 });
 
-// Saturday-turnover rule (high-season weeks with a 7-night minimum must
-// also have both the arrival AND the departure fall on a Saturday). All
-// dates below are in April 2027: 04-03 and 04-10 are Saturdays; 04-01 is a
-// Thursday. See _lib/pricing.mjs for why this is checked against every
-// night actually stayed, not only the check-in date.
+// Saturday-turnover rule (an explicit `saturdayTurnover` flag per night —
+// deliberately NOT inferred from any particular minNights value, so a
+// 7-night minimum can exist elsewhere without silently requiring Saturday-
+// only turnover there too) — both the arrival AND the departure must fall
+// on a Saturday for a stay touching such a night. All dates below are in
+// April 2027: 04-03 and 04-10 are Saturdays; 04-01 is a Thursday. See
+// _lib/pricing.mjs for why this is checked against every night actually
+// stayed, not only the check-in date.
 function saturdayTurnoverRates() {
   const rates = {};
-  // A laxer shoulder period just before the turnover week: low minimum,
-  // no Saturday restriction of its own.
+  // A laxer shoulder period just before the turnover week: low minimum, no
+  // Saturday-turnover flag of its own.
   rates["2027-04-01"] = { priceCents: 10000, minNights: 2 };
   rates["2027-04-02"] = { priceCents: 10000, minNights: 2 };
   // The Saturday-turnover week itself: 2027-04-03 (Sat) .. 2027-04-09 (Fri),
   // i.e. the 7 nights of a 04-03->04-10 stay.
   for (const d of ["2027-04-03", "2027-04-04", "2027-04-05", "2027-04-06", "2027-04-07", "2027-04-08", "2027-04-09"]) {
-    rates[d] = { priceCents: 20000, minNights: 7 };
+    rates[d] = { priceCents: 20000, minNights: 7, saturdayTurnover: true };
   }
   // A few more priced nights after the turnover week so a longer stay that
   // overshoots 04-10 doesn't hit RATE_MISSING instead of the rule we're
   // actually testing.
-  rates["2027-04-10"] = { priceCents: 20000, minNights: 7 };
+  rates["2027-04-10"] = { priceCents: 20000, minNights: 7, saturdayTurnover: true };
   rates["2027-04-11"] = { priceCents: 10000, minNights: 2 };
   rates["2027-04-12"] = { priceCents: 10000, minNights: 2 };
   return rates;
@@ -366,12 +369,176 @@ test("Saturday-turnover bypass is closed: an arrival in a laxer period that stay
   assert.equal(err.code, "SATURDAY_TURNOVER_REQUIRED");
 });
 
-test("Saturday-turnover rule doesn't fire at all for a stay that never touches a 7-night-minimum night", () => {
+test("Saturday-turnover rule doesn't fire at all for a stay that never touches a saturdayTurnover-flagged night", () => {
   const settings = baseSettings();
   const rates = saturdayTurnoverRates();
   // Entirely within the laxer shoulder period, Thursday -> Saturday — would
   // fail the Saturday rule if it wrongly applied here, but it shouldn't
-  // apply at all since no night in this stay has minNights === 7.
+  // apply at all since no night in this stay is flagged saturdayTurnover.
   const q = calculateQuote({ checkin: "2027-04-01", checkout: "2027-04-03", adults: 2, children: 0 }, settings, rates);
   assert.equal(q.nights, 2);
+});
+
+test("Saturday-turnover rule is decoupled from minNights: a 7-night minimum WITHOUT the explicit saturdayTurnover flag never requires Saturday-only turnover", () => {
+  const settings = baseSettings();
+  const rates = {
+    "2027-05-01": { priceCents: 10000, minNights: 7 }, // 7-night minimum, but no saturdayTurnover flag
+    "2027-05-02": { priceCents: 10000, minNights: 7 },
+    "2027-05-03": { priceCents: 10000, minNights: 7 },
+    "2027-05-04": { priceCents: 10000, minNights: 7 },
+    "2027-05-05": { priceCents: 10000, minNights: 7 },
+    "2027-05-06": { priceCents: 10000, minNights: 7 },
+    "2027-05-07": { priceCents: 10000, minNights: 7 },
+  };
+  // 2027-05-01 is a Saturday, 2027-05-05 is a Wednesday — would be rejected
+  // by the old (minNights === 7 implies Saturday-turnover) behavior even
+  // though the arrival itself (05-01) is fine and 7 nights meets the
+  // minimum; must now succeed since nothing here is saturdayTurnover-flagged.
+  const q = calculateQuote({ checkin: "2027-05-01", checkout: "2027-05-08", adults: 2, children: 0 }, settings, rates);
+  assert.equal(q.nights, 7);
+});
+
+// The exactly-4-free-nights-between-two-bookings exception — see
+// _lib/pricing.mjs fourNightGapException(). All dates below sit in a plain
+// 5-night-minimum period; 2027-10-01..04 are "busy" (an existing booking's
+// nights, simulated purely as a Set passed in as opts.busyNights — nothing
+// here actually reads or writes real booking data).
+function fourNightGapRates() {
+  const rates = {};
+  for (let i = 1; i <= 20; i++) {
+    const d = `2027-10-${String(i).padStart(2, "0")}`;
+    rates[d] = { priceCents: 10000, minNights: 5 };
+  }
+  return rates;
+}
+
+test("exactly a 4-night gap between two bookings is bookable as a whole, below the normal 5-night minimum", () => {
+  const settings = baseSettings();
+  const rates = fourNightGapRates();
+  // Booking A occupies through 2027-10-04 (i.e. 10-04 itself is the last
+  // booked night); the gap is 10-05..10-08 (4 free nights); booking B's
+  // first night is 10-09 (so checkout 10-09 is itself "busy").
+  const busyNights = new Set(["2027-10-01", "2027-10-02", "2027-10-03", "2027-10-04", "2027-10-09", "2027-10-10"]);
+  const q = calculateQuote(
+    { checkin: "2027-10-05", checkout: "2027-10-09", adults: 2, children: 0 },
+    settings,
+    rates,
+    { busyNights }
+  );
+  assert.equal(q.nights, 4);
+  assert.equal(q.fourNightGapException, true);
+});
+
+test("four-night-gap exception never applies to 1-3 nights", () => {
+  const settings = baseSettings();
+  const rates = fourNightGapRates();
+  const busyNights = new Set(["2027-10-01", "2027-10-02", "2027-10-03", "2027-10-04", "2027-10-08", "2027-10-09"]);
+  // Same sandwiching, but only a 3-night gap (10-05..10-07, checkout 10-08).
+  const err = expectQuoteError(() =>
+    calculateQuote({ checkin: "2027-10-05", checkout: "2027-10-08", adults: 2, children: 0 }, settings, rates, { busyNights })
+  );
+  assert.equal(err.code, "MIN_NIGHTS_NOT_MET");
+});
+
+test("four-night-gap exception never applies when only one side is an actual booking", () => {
+  const settings = baseSettings();
+  const rates = fourNightGapRates();
+  // Busy right before check-in, but nothing booked at checkout — this is a
+  // 4-night slice of open-ended availability, not "between two bookings".
+  const busyNights = new Set(["2027-10-01", "2027-10-02", "2027-10-03", "2027-10-04"]);
+  const err = expectQuoteError(() =>
+    calculateQuote({ checkin: "2027-10-05", checkout: "2027-10-09", adults: 2, children: 0 }, settings, rates, { busyNights })
+  );
+  assert.equal(err.code, "MIN_NIGHTS_NOT_MET");
+});
+
+test("four-night-gap exception never applies inside a winter (30-night) or high-season (Saturday-turnover) period", () => {
+  const settings = baseSettings();
+  const rates = fourNightGapRates();
+  rates["2027-10-05"].minNights = 30; // this arrival date is actually winter, not the normal 5-night period
+  const busyNights = new Set(["2027-10-01", "2027-10-02", "2027-10-03", "2027-10-04", "2027-10-09", "2027-10-10"]);
+  const err = expectQuoteError(() =>
+    calculateQuote({ checkin: "2027-10-05", checkout: "2027-10-09", adults: 2, children: 0 }, settings, rates, { busyNights })
+  );
+  assert.equal(err.code, "MIN_NIGHTS_NOT_MET");
+  assert.equal(err.details.requiredNights, 30);
+});
+
+test("four-night-gap exception is never granted without busyNights (e.g. an older call site that doesn't pass opts)", () => {
+  const settings = baseSettings();
+  const rates = fourNightGapRates();
+  // No opts.busyNights passed at all — must behave exactly as before this
+  // feature existed: a below-minimum stay is always rejected.
+  const err = expectQuoteError(() =>
+    calculateQuote({ checkin: "2027-10-05", checkout: "2027-10-09", adults: 2, children: 0 }, settings, rates)
+  );
+  assert.equal(err.code, "MIN_NIGHTS_NOT_MET");
+});
+
+// ---- derivePartySize() -----------------------------------------------
+// The one place quote.mjs/book.mjs turn the guest form's "total people" +
+// "of which children" input into the {adults, children} calculateQuote()
+// itself has always used — re-validated here server-side, never trusted
+// as given by the client (see _lib/pricing.mjs derivePartySize()).
+
+test("derivePartySize: splits total guests and children into adults/children", () => {
+  const { adults, children, totalGuests } = derivePartySize({ totalGuests: 6, children: 2 });
+  assert.equal(adults, 4);
+  assert.equal(children, 2);
+  assert.equal(totalGuests, 6);
+});
+
+test("derivePartySize: defaults children to 0 when omitted", () => {
+  const { adults, children } = derivePartySize({ totalGuests: 3 });
+  assert.equal(adults, 3);
+  assert.equal(children, 0);
+});
+
+test("derivePartySize: rejects children greater than the total number of guests", () => {
+  try {
+    derivePartySize({ totalGuests: 3, children: 4 });
+    assert.fail("expected derivePartySize to throw");
+  } catch (err) {
+    assert.ok(err instanceof QuoteError);
+    assert.equal(err.code, "CHILDREN_EXCEED_TOTAL");
+    assert.equal(err.details.totalGuests, 3);
+    assert.equal(err.details.children, 4);
+  }
+});
+
+test("derivePartySize: rejects a non-integer, zero, or negative total guest count", () => {
+  for (const bad of [0, -1, 1.5, "abc", undefined, NaN]) {
+    try {
+      derivePartySize({ totalGuests: bad, children: 0 });
+      assert.fail(`expected derivePartySize to throw for totalGuests=${bad}`);
+    } catch (err) {
+      assert.ok(err instanceof QuoteError);
+      assert.equal(err.code, "PARTY_INVALID");
+    }
+  }
+});
+
+test("derivePartySize: rejects a non-integer or negative children count", () => {
+  // NaN/undefined/0 aren't in this list — derivePartySize treats a falsy
+  // children value as "0 children" (`Number(children || 0)`), same as
+  // omitting the field entirely; that's covered by the "defaults to 0" test
+  // above, not a rejection case.
+  for (const bad of [-1, 1.5, "abc"]) {
+    try {
+      derivePartySize({ totalGuests: 4, children: bad });
+      assert.fail(`expected derivePartySize to throw for children=${bad}`);
+    } catch (err) {
+      assert.ok(err instanceof QuoteError);
+      assert.equal(err.code, "PARTY_INVALID");
+    }
+  }
+});
+
+test("derivePartySize: exactly all children (adults derived as 0) is allowed by derivePartySize itself", () => {
+  // derivePartySize only checks children <= totalGuests — an all-children
+  // party being unrealistic/rejected is calculateQuote's own concern (it
+  // requires adults >= 1 via PARTY_INVALID), not this translation step's.
+  const { adults, children } = derivePartySize({ totalGuests: 2, children: 2 });
+  assert.equal(adults, 0);
+  assert.equal(children, 2);
 });

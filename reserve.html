@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Reserve — L'Ancienne École, Troche</title>
-<meta name="description" content="Check availability and send a booking request for L'Ancienne École directly — no OTA fees, confirmed personally by the owner.">
+<meta name="description" content="Check live availability and book L'Ancienne École directly — instantly confirmed by secure payment, no OTA fees.">
 <link rel="canonical" href="https://ancienne-ecole.rent/reserve.html">
 <link rel="alternate" hreflang="en" href="https://ancienne-ecole.rent/reserve.html">
 <link rel="alternate" hreflang="fr" href="https://ancienne-ecole.rent/fr/reserve.html">
@@ -62,7 +62,7 @@
     </div>
     <div style="display: flex; align-items: center; gap: 10px;">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c9a769" stroke-width="2"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="8" r="5"/></svg>
-      <span style="font-size: 13px; color: var(--text-dim);">Every request confirmed by Aernoud, personally</span>
+      <span style="font-size: 13px; color: var(--text-dim);">Instantly confirmed by secure payment</span>
     </div>
     <div style="display: flex; align-items: center; gap: 10px;">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c9a769" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>
@@ -122,16 +122,12 @@
 
     <div class="form-grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
       <div class="field">
-        <label for="adults">Adults</label>
-        <select class="input" id="adults" name="adults" style="font-family: 'Work Sans', sans-serif;">
-          <option>1</option><option>2</option><option>3</option><option selected>4</option><option>5</option><option>6</option><option>7</option><option>8</option>
-        </select>
+        <label for="total-guests">Total guests</label>
+        <select class="input" id="total-guests" name="total-guests" style="font-family: 'Work Sans', sans-serif;"></select>
       </div>
       <div class="field">
-        <label for="children">Children</label>
-        <select class="input" id="children" name="children" style="font-family: 'Work Sans', sans-serif;">
-          <option selected>0</option><option>1</option><option>2</option>
-        </select>
+        <label for="children">Of which children (under 18)</label>
+        <select class="input" id="children" name="children" style="font-family: 'Work Sans', sans-serif;"></select>
       </div>
     </div>
 
@@ -186,13 +182,13 @@
   </div>
   <div>
     <div style="font-family:'Cormorant Garamond', serif; font-size: 34px; color: var(--gold); margin-bottom: 14px;">02</div>
-    <div style="font-size: 18px; margin-bottom: 10px;">Send your request</div>
-    <div style="font-size: 14px; line-height: 1.7; color: var(--text-dim);">Fill in your dates and party size and send it through &mdash; no payment yet, just a request.</div>
+    <div style="font-size: 18px; margin-bottom: 10px;">Enter your details</div>
+    <div style="font-size: 14px; line-height: 1.7; color: var(--text-dim);">Fill in your party size and details, and review the full itemized price before continuing.</div>
   </div>
   <div>
     <div style="font-family:'Cormorant Garamond', serif; font-size: 34px; color: var(--gold); margin-bottom: 14px;">03</div>
-    <div style="font-size: 18px; margin-bottom: 10px;">We confirm, personally</div>
-    <div style="font-size: 14px; line-height: 1.7; color: var(--text-dim);">Aernoud is notified the moment your request comes in and reviews it himself &mdash; you&rsquo;ll hear back within 24 hours with confirmation and a secure payment link.</div>
+    <div style="font-size: 18px; margin-bottom: 10px;">Pay securely, instantly confirmed</div>
+    <div style="font-size: 14px; line-height: 1.7; color: var(--text-dim);">You pay via Stripe on the next screen. Your booking is confirmed the moment payment succeeds &mdash; a real booking, not a request.</div>
   </div>
 </div>
 

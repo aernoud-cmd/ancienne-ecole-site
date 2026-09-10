@@ -542,6 +542,7 @@
       const rate = rates[dateISO];
       const hasPrice = rate && rate.priceCents;
       const isBlocked = !!(rate && rate.blocked);
+      const isSaturdayTurnover = !!(rate && rate.saturdayTurnover);
       const source = nightSources[dateISO];
       const occupied = isDateOccupied(dateISO);
       const inRange = selStart && selEnd && dateISO >= selStart && dateISO <= selEnd;
@@ -552,6 +553,7 @@
       if (!hasPrice) classes.push("no-price");
       if (occupied) classes.push("occupied");
       if (isBlocked) classes.push("blocked");
+      if (isSaturdayTurnover) classes.push("sat-turnover");
       if (inRange) classes.push("in-range");
       if (isEdge || isPendingStart) classes.push("range-edge");
       const ariaBits = [
@@ -559,6 +561,7 @@
         hasPrice ? fmtEuro(rate.priceCents) : "geen prijs",
         rate && rate.minNights ? `minimum ${rate.minNights} nachten` : "",
         isBlocked ? "eigen blokkade" : "",
+        isSaturdayTurnover ? "zaterdag-wisseldag (hoogseizoen)" : "",
         source ? SOURCE_LABELS[source] : "",
         occupied ? "niet beschikbaar voor gasten" : "",
       ].filter(Boolean).join(", ");
@@ -568,6 +571,7 @@
         ${hasPrice ? `<span class="d-price">${fmtEuro(rate.priceCents)}</span>` : ""}
         ${rate && rate.minNights ? `<span class="d-min">min ${rate.minNights}n</span>` : ""}
         ${isBlocked ? `<span class="d-blocked-mark" aria-hidden="true">✕</span>` : ""}
+        ${isSaturdayTurnover ? `<span class="d-sat-mark" aria-hidden="true">Za</span>` : ""}
       </div>`;
     }
     grid.innerHTML = html;
@@ -725,12 +729,14 @@
     const priceValues = dates.map((d) => rates[d]?.priceCents ?? null);
     const minValues = dates.map((d) => rates[d]?.minNights ?? null);
     const blockedValues = dates.map((d) => !!rates[d]?.blocked);
+    const saturdayTurnoverValues = dates.map((d) => !!rates[d]?.saturdayTurnover);
     const arrivalValues = dates.map((d) => JSON.stringify(rates[d]?.allowedArrivalWeekdays ?? null));
     const uniform = (arr) => arr.every((v) => v === arr[0]);
     return {
       price: { uniform: uniform(priceValues), value: priceValues[0] },
       minNights: { uniform: uniform(minValues), value: minValues[0] },
       blocked: { uniform: uniform(blockedValues), value: blockedValues[0] },
+      saturdayTurnover: { uniform: uniform(saturdayTurnoverValues), value: saturdayTurnoverValues[0] },
       allowedArrivalWeekdays: { uniform: uniform(arrivalValues), value: dates[0] ? (rates[dates[0]]?.allowedArrivalWeekdays ?? null) : null },
     };
   }
@@ -743,6 +749,7 @@
     const minInput = document.getElementById("ae-min-nights-input");
     const minClear = document.getElementById("ae-min-clear-cb");
     const blockedSelect = document.getElementById("ae-blocked-select");
+    const saturdayTurnoverSelect = document.getElementById("ae-saturday-turnover-select");
     const arrivalSelect = document.getElementById("ae-arrival-days-select");
     const arrivalChecks = document.getElementById("ae-arrival-days-checks");
     const statusLine = document.getElementById("ae-period-current-status");
@@ -760,16 +767,18 @@
     minClear.checked = false;
 
     blockedSelect.value = ""; // always default to "ongewijzigd laten" — see below for why
+    saturdayTurnoverSelect.value = ""; // same: never presumed, always an explicit choice
 
     const priceText = !state.price.uniform ? "Gemengd" : state.price.value != null ? fmtEuro(state.price.value) : "geen prijs ingesteld";
     const minText = !state.minNights.uniform ? "Gemengd" : state.minNights.value != null ? `${state.minNights.value} nachten` : `standaard (${settings.defaultMinNights})`;
     const blockedText = !state.blocked.uniform ? "Gemengd" : state.blocked.value ? "geblokkeerd" : "niet geblokkeerd";
+    const saturdayTurnoverText = !state.saturdayTurnover.uniform ? "Gemengd" : state.saturdayTurnover.value ? "aan (zaterdag-zaterdag verplicht)" : "uit";
     const arrivalText = !state.allowedArrivalWeekdays.uniform
       ? "Gemengd"
       : state.allowedArrivalWeekdays.value
         ? state.allowedArrivalWeekdays.value.map((n) => WEEKDAY_NAMES[n - 1]).join("/")
         : "site-brede instelling";
-    statusLine.innerHTML = `<b>Huidige waarden:</b> prijs ${priceText} · minimumverblijf ${minText} · ${blockedText} · aankomstdagen: ${arrivalText}`;
+    statusLine.innerHTML = `<b>Huidige waarden:</b> prijs ${priceText} · minimumverblijf ${minText} · ${blockedText} · zaterdag-wisseldag: ${saturdayTurnoverText} · aankomstdagen: ${arrivalText}`;
 
     setDirty(false);
     updateSaveButtonState();
@@ -781,6 +790,7 @@
     ["ae-min-nights-input", "input"],
     ["ae-min-clear-cb", "change"],
     ["ae-blocked-select", "change"],
+    ["ae-saturday-turnover-select", "change"],
   ].forEach(([id, evt]) => {
     document.getElementById(id).addEventListener(evt, () => {
       setDirty(true);
@@ -806,6 +816,7 @@
     const minVal = document.getElementById("ae-min-nights-input").value;
     const minClear = document.getElementById("ae-min-clear-cb").checked;
     const blockedChoice = document.getElementById("ae-blocked-select").value; // "" | "block" | "unblock"
+    const saturdayTurnoverChoice = document.getElementById("ae-saturday-turnover-select").value; // "" | "on" | "off"
 
     const fields = {};
     const errors = [];
@@ -828,6 +839,9 @@
 
     if (blockedChoice === "block") fields.blocked = true;
     else if (blockedChoice === "unblock") fields.blocked = false;
+
+    if (saturdayTurnoverChoice === "on") fields.saturdayTurnover = true;
+    else if (saturdayTurnoverChoice === "off") fields.saturdayTurnover = false;
 
     const arrivalChoice = document.getElementById("ae-arrival-days-select").value; // "" | "custom" | "clear"
     if (arrivalChoice === "clear") {
@@ -852,6 +866,7 @@
     if ("priceCents" in fields) parts.push(fields.priceCents === null ? "prijs verwijderen (niet boekbaar maken)" : `nachtprijs instellen op ${fmtEuro(fields.priceCents)}`);
     if ("minNights" in fields) parts.push(fields.minNights === null ? `minimumverblijf terugzetten naar standaard (${settings.defaultMinNights})` : `minimumverblijf instellen op ${fields.minNights} nacht(en)`);
     if ("blocked" in fields) parts.push(fields.blocked ? "deze data blokkeren (niet boekbaar, eigen gebruik)" : "blokkade opheffen");
+    if ("saturdayTurnover" in fields) parts.push(fields.saturdayTurnover ? "zaterdag-wisseldag AAN zetten (aankomst én vertrek verplicht op zaterdag voor elk verblijf dat deze nachten raakt)" : "zaterdag-wisseldag UIT zetten");
     if ("allowedArrivalWeekdays" in fields) parts.push(fields.allowedArrivalWeekdays === null ? "aankomstdagen terugzetten naar de site-brede instelling" : `aankomst alleen toestaan op: ${fields.allowedArrivalWeekdays.map((n) => WEEKDAY_NAMES[n - 1]).join("/")}`);
     return `Dit gaat voor ${nNights} nacht(en) (${fmtDateNL(selStart)} t/m ${fmtDateNL(selEnd)}): ${parts.join("; ")}. Alles wordt in één keer opgeslagen — of alles lukt, of er verandert niets. Doorgaan?`;
   }

@@ -63,6 +63,16 @@ export function isoWeekday(dateISO) {
   return jsDay === 0 ? 7 : jsDay;
 }
 
+// dateISO shifted by `days` (may be negative). Used for "the night right
+// before this one" / "the night right after this one" adjacency checks
+// (e.g. the exactly-4-free-nights-between-two-bookings exception in
+// _lib/pricing.mjs) — never done with raw millisecond arithmetic at the
+// call site, to keep every date shift going through the same UTC-safe path.
+export function addDaysISO(dateISO, days) {
+  const d = parseISODate(dateISO);
+  return toISODate(new Date(d.getTime() + days * 86400000));
+}
+
 export function hoursSince(isoTimestamp) {
   return (Date.now() - new Date(isoTimestamp).getTime()) / 3600000;
 }
