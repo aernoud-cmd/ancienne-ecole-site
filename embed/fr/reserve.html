@@ -156,9 +156,21 @@
     <div id="ae-price-breakdown" style="padding: 18px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin-bottom: 22px; transition: opacity 0.15s;">
     </div>
 
-    <button class="btn-primary" type="submit" id="ae-booking-submit">Envoyer la demande de réservation</button>
+    
+    <div class="field" style="margin-bottom: 18px;">
+      <details style="border:1px solid var(--line); border-radius:2px; padding:10px 14px; margin-bottom:10px;">
+        <summary style="cursor:pointer; font-size:13px; color:var(--text-dim); letter-spacing:0.3px;">Conditions de r&eacute;servation, annulation et caution</summary>
+        <p style="font-size:12.5px; line-height:1.6; color:var(--text-dim); margin:10px 0 0;">Vous r&eacute;servez directement aupr&egrave;s de L&#39;Ancienne &Eacute;cole pour les dates et le prix exacts indiqu&eacute;s ci-dessus. Le paiement s&#39;effectue en toute s&eacute;curit&eacute; via Stripe &agrave; l&#39;&eacute;cran suivant&nbsp;; votre r&eacute;servation est confirm&eacute;e d&egrave;s que ce paiement aboutit &mdash; il s&#39;agit d&#39;une r&eacute;servation r&eacute;elle et imm&eacute;diate, pas d&#39;une demande. La taxe de s&eacute;jour est une taxe locale collect&eacute;e pour le compte de la commune. La caution remboursable est d&eacute;bit&eacute;e en m&ecirc;me temps que le reste, puis restitu&eacute;e par virement apr&egrave;s votre s&eacute;jour une fois la maison v&eacute;rifi&eacute;e. Pour modifier ou annuler une r&eacute;servation pay&eacute;e, merci de nous contacter directement &mdash; nous confirmerons avec vous les conditions applicables &agrave; votre situation.</p>
+      </details>
+      <label style="display:flex; align-items:flex-start; gap:8px; cursor:pointer; font-size:13px; color:var(--text-dim); text-transform:none; letter-spacing:normal;">
+        <input type="checkbox" id="terms-accept" style="margin-top:3px;">
+        <span>J&#39;ai lu et j&#39;accepte les conditions ci-dessus.</span>
+      </label>
+    </div>
+
+    <button class="btn-primary" type="submit" id="ae-booking-submit">Proc&eacute;der au paiement s&eacute;curis&eacute;</button>
     <div id="ae-booking-status" style="text-align: center; font-size: 13px; margin-top: 14px; min-height: 18px;"></div>
-    <div style="text-align: center; font-size: 12px; color: var(--text-dim); margin-top: 10px;">Aucun paiement maintenant &mdash; Aernoud examine chaque demande personnellement et confirme sous 24h, avec un lien de paiement sécurisé.</div>
+    <div style="text-align: center; font-size: 12px; color: var(--text-dim); margin-top: 10px;">Vous paierez en toute s&eacute;curit&eacute; via Stripe &agrave; l&#39;&eacute;cran suivant. Votre r&eacute;servation est confirm&eacute;e d&egrave;s que le paiement aboutit &mdash; pas apr&egrave;s une v&eacute;rification.</div>
   </form>
 </div>
 

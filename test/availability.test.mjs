@@ -42,3 +42,17 @@ test("effectiveStatus never expires a confirmed booking that's already paid", ()
   const status = effectiveStatus({ status: "confirmed", paid: true, respondedAt, createdAt: respondedAt }, settings);
   assert.equal(status, "confirmed");
 });
+
+test("effectiveStatus expires an awaiting_payment hold (direct Checkout) once older than checkoutHoldMinutes", () => {
+  const settings = { checkoutHoldMinutes: 45 };
+  const createdAt = new Date(Date.now() - 46 * 60000).toISOString();
+  const status = effectiveStatus({ status: "awaiting_payment", createdAt }, settings);
+  assert.equal(status, "payment_expired");
+});
+
+test("effectiveStatus keeps an awaiting_payment hold active while still inside checkoutHoldMinutes", () => {
+  const settings = { checkoutHoldMinutes: 45 };
+  const createdAt = new Date(Date.now() - 10 * 60000).toISOString();
+  const status = effectiveStatus({ status: "awaiting_payment", createdAt }, settings);
+  assert.equal(status, "awaiting_payment");
+});

@@ -7,23 +7,33 @@
   const MONTH_NAMES = ["januari","februari","maart","april","mei","juni","juli","augustus","september","oktober","november","december"];
   const STATUS_LABELS = {
     pending: "Aangevraagd",
-    confirmed: "Goedgekeurd",
+    awaiting_payment: "Wacht op betaling",
+    confirmed: "Bevestigd (betaald)",
     declined: "Afgewezen",
     cancelled: "Geannuleerd",
     expired_unanswered: "Verlopen (niet beantwoord)",
     expired_unpaid: "Verlopen (niet betaald)",
+    payment_expired: "Betaling verlopen",
   };
   const HISTORY_EVENT_LABELS = {
     requested: "Aangevraagd",
+    awaiting_payment: "Aangemaakt (wacht op betaling)",
+    checkout_session_created: "Betaalsessie aangemaakt",
+    checkout_session_error: "Betaalsessie aanmaken mislukt",
     approved: "Goedgekeurd",
     declined: "Afgewezen",
     cancelled: "Geannuleerd",
     paid: "Betaald",
     payment_link_created: "Betaallink aangemaakt",
     payment_link_error: "Betaallink aanmaken mislukt",
+    payment_expired: "Betaling verlopen (niet op tijd betaald)",
     expired_unanswered: "Verlopen (niet beantwoord)",
     expired_unpaid: "Verlopen (niet betaald)",
     stale_link_payment_alert: "⚠ Betaling ontvangen op niet-actieve boeking",
+    stale_checkout_payment_alert: "⚠ Betaling ontvangen op niet-actieve boeking",
+    refund_initiated: "Terugbetaling gestart bij Stripe",
+    refund_failed: "Terugbetaling mislukt",
+    refund_confirmed: "Terugbetaling bevestigd door Stripe",
   };
   const HISTORY_BY_LABELS = {
     "owner-email-link": "via e-maillink",
@@ -238,10 +248,28 @@
          Dit bedrag is <b>niet</b> aan deze boeking toegevoegd — regel dit handmatig terug via het Stripe-dashboard
          (checkout session <code>${b.staleLinkPayment.stripeCheckoutSessionId}</code>).</div>`
       : "";
+    const staleCheckoutWarning = b.staleCheckoutPayment
+      ? `<div class="admin-stale-payment-warning">⚠ Er is op ${fmtDateTimeNL(b.staleCheckoutPayment.detectedAt)} een betaling van
+         ${b.staleCheckoutPayment.amountTotalCents != null ? fmtEuro(b.staleCheckoutPayment.amountTotalCents) : "?"} binnengekomen
+         terwijl deze boeking al "${STATUS_LABELS[b.staleCheckoutPayment.bookingStatusAtPayment] || b.staleCheckoutPayment.bookingStatusAtPayment}" was.
+         Dit bedrag is <b>niet</b> aan deze boeking toegevoegd — regel dit handmatig terug via het Stripe-dashboard
+         (checkout session <code>${b.staleCheckoutPayment.stripeCheckoutSessionId}</code>).</div>`
+      : "";
+
+    let refundInfo = "";
+    if (b.refundStatus === "pending") {
+      refundInfo = `<div class="admin-refund-warning">Terugbetaling van ${fmtEuro(b.refundPendingAmountCents)} is gestart bij Stripe en wacht nog op bevestiging.</div>`;
+    } else if (b.refundStatus === "failed") {
+      refundInfo = `<div class="admin-stale-payment-warning">⚠ Terugbetaling mislukt: ${escapeHtml(b.refundError || "onbekende fout")}. Gebruik de knop hieronder om het opnieuw te proberen, of regel het handmatig via het Stripe-dashboard.</div>`;
+    } else if (b.refundStatus === "fully_refunded" || b.refundStatus === "partially_refunded") {
+      refundInfo = `<div class="admin-refund-warning">✓ ${fmtEuro(b.refundConfirmedTotalCents)} teruggestort, bevestigd door Stripe${b.refundStatus === "partially_refunded" ? " (gedeeltelijk)" : ""}.</div>`;
+    }
 
     const actions = [];
     if (b.canDecline) actions.push(`<button type="button" class="btn-danger" data-action="decline" data-id="${b.id}">Aanvraag afwijzen</button>`);
     if (b.canCancel) actions.push(`<button type="button" class="btn-danger" data-action="cancel" data-id="${b.id}">Boeking annuleren</button>`);
+    if (b.canCancelAndRefund) actions.push(`<button type="button" class="btn-danger" data-action="cancel_and_refund" data-id="${b.id}" data-amount="${b.amountToRefundCents}">Annuleren &amp; terugbetalen (${fmtEuro(b.amountToRefundCents)})</button>`);
+    if (b.canRetryRefund) actions.push(`<button type="button" class="btn-danger" data-action="cancel_and_refund" data-id="${b.id}" data-amount="${b.amountToRefundCents}">Terugbetaling opnieuw proberen (${fmtEuro(b.amountToRefundCents)})</button>`);
     const actionsHtml = actions.length
       ? `<div class="field" style="max-width:360px;"><label for="ae-cancel-reason-${b.id}">Reden (optioneel, alleen intern)</label>
            <input class="input" type="text" id="ae-cancel-reason-${b.id}" maxlength="300"></div>
@@ -251,17 +279,21 @@
 
     return `<div class="admin-booking-detail">
       ${staleWarning}
+      ${staleCheckoutWarning}
       <div class="admin-booking-detail-grid">
         <div>
           <h4>Gast</h4>
           <p class="admin-small">${escapeHtml(b.name)} — ${escapeHtml(b.email)}${b.phone ? ` — ${escapeHtml(b.phone)}` : ""}</p>
           ${b.message ? `<p class="admin-small admin-dim">"${escapeHtml(b.message)}"</p>` : ""}
+          ${b.termsVersion ? `<p class="admin-small admin-dim">Voorwaarden geaccepteerd: versie ${escapeHtml(b.termsVersion)}</p>` : ""}
           <h4 style="margin-top:14px;">Betaling</h4>
           <p class="admin-small">
             ${b.paid ? `<span class="status-paid-badge">Betaald${b.paidAt ? ` op ${fmtDateTimeNL(b.paidAt)}` : ""}</span>` : "Nog niet betaald"}
+            ${b.stripeCheckoutSessionExpiresAt && !b.paid ? `<br><span class="admin-dim">Betaalsessie verloopt: ${fmtDateTimeNL(b.stripeCheckoutSessionExpiresAt)}</span>` : ""}
             ${b.stripePaymentLinkUrl ? `<br><a href="${b.stripePaymentLinkUrl}" target="_blank" rel="noopener">Betaallink</a>` : ""}
             ${b.stripePaymentLinkDeactivateError ? `<br><span class="admin-dim">Let op: betaallink deactiveren mislukt (${escapeHtml(b.stripePaymentLinkDeactivateError)}) — zet 'm handmatig uit in Stripe.</span>` : ""}
           </p>
+          ${refundInfo}
           ${b.cancelledAt ? `<p class="admin-small admin-dim">Geannuleerd op ${fmtDateTimeNL(b.cancelledAt)}${b.cancelReason ? ` — reden: ${escapeHtml(b.cancelReason)}` : ""}</p>` : ""}
         </div>
         <div>
@@ -288,7 +320,11 @@
     tbody.querySelectorAll("[data-action]").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
-        handleBookingAction(btn.dataset.id, btn.dataset.action);
+        if (btn.dataset.action === "cancel_and_refund") {
+          handleCancelAndRefund(btn.dataset.id, Number(btn.dataset.amount));
+        } else {
+          handleBookingAction(btn.dataset.id, btn.dataset.action);
+        }
       });
     });
   }
@@ -299,7 +335,7 @@
     const reasonInput = document.getElementById(`ae-cancel-reason-${id}`);
     const reason = reasonInput ? reasonInput.value.trim() : "";
     const confirmText = action === "cancel"
-      ? `Boeking van ${escapeHtml(b.name)} (${fmtDateNL(b.checkin)} → ${fmtDateNL(b.checkout)}) annuleren?${b.paid ? " Deze boeking is al betaald — annuleren keert dit geld NIET automatisch terug." : ""} De data komen weer vrij voor andere aanvragen.`
+      ? `Boeking van ${escapeHtml(b.name)} (${fmtDateNL(b.checkin)} → ${fmtDateNL(b.checkout)}) annuleren? De data komen weer vrij voor andere aanvragen.`
       : `Aanvraag van ${escapeHtml(b.name)} (${fmtDateNL(b.checkin)} → ${fmtDateNL(b.checkout)}) afwijzen? De gast krijgt hier een e-mail over.`;
     showBookingConfirm(confirmText, async () => {
       const resultEl = document.getElementById(`ae-detail-result-${id}`);
@@ -322,15 +358,74 @@
       if (freshResultEl) {
         freshResultEl.style.color = "#c9a769";
         freshResultEl.innerHTML = action === "cancel" ? "✓ Boeking geannuleerd." : "✓ Aanvraag afgewezen.";
-        if (data.refundNote) {
-          freshResultEl.innerHTML += `<div class="admin-refund-warning">${escapeHtml(data.refundNote)}</div>`;
-        }
-      } else {
-        // canCancel/canDecline are both false now that the action succeeded,
-        // so renderBookingDetail() no longer renders the actions/result
-        // block at all — the status pill (now "Geannuleerd"/"Afgewezen")
-        // and the fresh history entry are the confirmation in that case.
       }
+      // else: canCancel/canDecline are both false now that the action
+      // succeeded, so renderBookingDetail() no longer renders the
+      // actions/result block at all — the status pill (now "Geannuleerd"/
+      // "Afgewezen") and the fresh history entry are the confirmation.
+    });
+  }
+
+  // "cancel_and_refund" gets its own flow, deliberately separate from
+  // handleBookingAction() above: this is real money, so it needs TWO
+  // explicit confirmation steps (see README/spec section 9) rather than the
+  // single Ja/Nee dialog every other action uses. Step 1 states the guest,
+  // dates and euro amount and asks whether to proceed at all; step 2 makes
+  // the admin explicitly confirm THAT SAME amount a second time, right
+  // before the real Stripe refund fires. The `amountToRefundCents` used
+  // here always comes fresh from the last admin-bookings load (via
+  // bookingsById), never from the stale value on an already-open detail
+  // panel, so both confirmations show the actual current figure — and the
+  // server independently re-checks this same amount before refunding
+  // anything (see admin-booking-action.mjs's REFUND_AMOUNT_MISMATCH check).
+  function handleCancelAndRefund(id, amountCentsAtClick) {
+    const b = bookingsById[id];
+    if (!b) return;
+    const amountCents = b.amountToRefundCents ?? amountCentsAtClick;
+    const isRetry = b.status === "cancelled";
+    const reasonInput = document.getElementById(`ae-cancel-reason-${id}`);
+    const reason = reasonInput ? reasonInput.value.trim() : "";
+    const guestLine = `${escapeHtml(b.name)} (${escapeHtml(b.email)}), ${fmtDateNL(b.checkin)} → ${fmtDateNL(b.checkout)}`;
+
+    const step1 = isRetry
+      ? `Terugbetaling van ${fmtEuro(amountCents)} aan ${guestLine} opnieuw proberen bij Stripe?`
+      : `Boeking van ${guestLine} annuleren én ${fmtEuro(amountCents)} terugbetalen via Stripe? De data komen weer vrij. Dit kan niet ongedaan worden gemaakt.`;
+
+    showBookingConfirm(step1, () => {
+      const step2 = `Laatste bevestiging: hiermee start je een echte Stripe-terugbetaling van ${fmtEuro(amountCents)} aan ${guestLine}. Weet je dit zeker?`;
+      showBookingConfirm(step2, async () => {
+        const resultEl = document.getElementById(`ae-detail-result-${id}`);
+        const { ok, data } = await api("admin-booking-action", {
+          method: "POST",
+          body: JSON.stringify({ id, action: "cancel_and_refund", reason: reason || undefined, confirmAmountCents: amountCents }),
+        });
+        if (!ok) {
+          if (resultEl) {
+            resultEl.style.color = "#d98c8c";
+            resultEl.textContent = data.code === "REFUND_AMOUNT_MISMATCH"
+              ? `Het bedrag is intussen gewijzigd (nu ${fmtEuro(data.amountToRefundCents)}) — ververs en probeer opnieuw.`
+              : (data.error || "Actie mislukt.");
+          }
+          await loadBookings();
+          openBookingId = id;
+          renderBookingsTable();
+          return;
+        }
+        await loadBookings();
+        openBookingId = id;
+        renderBookingsTable();
+        if (!formDirty) loadPricing().catch(() => {});
+        const freshResultEl = document.getElementById(`ae-detail-result-${id}`);
+        if (freshResultEl) {
+          if (data.refund?.status === "failed") {
+            freshResultEl.style.color = "#d98c8c";
+            freshResultEl.innerHTML = `✓ Boeking geannuleerd, maar de terugbetaling is <b>mislukt</b>: ${escapeHtml(data.refund.error || "onbekende fout")}. De eigenaar is hierover per e-mail gewaarschuwd.`;
+          } else {
+            freshResultEl.style.color = "#c9a769";
+            freshResultEl.innerHTML = `✓ Boeking geannuleerd. Terugbetaling van ${fmtEuro(data.refund?.amountToRefundCents ?? amountCents)} is gestart bij Stripe (wacht nog op bevestiging).`;
+          }
+        }
+      });
     });
   }
 

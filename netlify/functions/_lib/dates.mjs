@@ -66,3 +66,7 @@ export function isoWeekday(dateISO) {
 export function hoursSince(isoTimestamp) {
   return (Date.now() - new Date(isoTimestamp).getTime()) / 3600000;
 }
+
+export function minutesSince(isoTimestamp) {
+  return (Date.now() - new Date(isoTimestamp).getTime()) / 60000;
+}

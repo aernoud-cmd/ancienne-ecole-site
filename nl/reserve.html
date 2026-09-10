@@ -160,9 +160,21 @@
     <div id="ae-price-breakdown" style="padding: 18px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin-bottom: 22px; transition: opacity 0.15s;">
     </div>
 
-    <button class="btn-primary" type="submit" id="ae-booking-submit">Boekingsaanvraag versturen</button>
+    
+    <div class="field" style="margin-bottom: 18px;">
+      <details style="border:1px solid var(--line); border-radius:2px; padding:10px 14px; margin-bottom:10px;">
+        <summary style="cursor:pointer; font-size:13px; color:var(--text-dim); letter-spacing:0.3px;">Boekingsvoorwaarden, annulering &amp; borg</summary>
+        <p style="font-size:12.5px; line-height:1.6; color:var(--text-dim); margin:10px 0 0;">Je boekt rechtstreeks bij L&#39;Ancienne &Eacute;cole voor de exacte data en prijs hierboven. Betalen gebeurt veilig via Stripe op het volgende scherm; je boeking is bevestigd zodra die betaling lukt &mdash; dit is een echte, directe boeking, geen aanvraag. De toeristenbelasting is een gemeentelijke heffing die namens de gemeente wordt ge&iuml;nd. De terugbetaalbare borg wordt samen met de rest afgerekend en na je verblijf per bankoverschrijving terugbetaald zodra het huis is gecontroleerd. Wil je een betaalde boeking wijzigen of annuleren, neem dan rechtstreeks contact met ons op &mdash; we bevestigen dan samen met jou welke voorwaarden voor jouw situatie gelden.</p>
+      </details>
+      <label style="display:flex; align-items:flex-start; gap:8px; cursor:pointer; font-size:13px; color:var(--text-dim); text-transform:none; letter-spacing:normal;">
+        <input type="checkbox" id="terms-accept" style="margin-top:3px;">
+        <span>Ik heb de voorwaarden hierboven gelezen en ga ermee akkoord.</span>
+      </label>
+    </div>
+
+    <button class="btn-primary" type="submit" id="ae-booking-submit">Doorgaan naar veilig betalen</button>
     <div id="ae-booking-status" style="text-align: center; font-size: 13px; margin-top: 14px; min-height: 18px;"></div>
-    <div style="text-align: center; font-size: 12px; color: var(--text-dim); margin-top: 10px;">Nog geen betaling &mdash; Aernoud bekijkt elke aanvraag persoonlijk en bevestigt binnen 24u, met een veilige betaallink.</div>
+    <div style="text-align: center; font-size: 12px; color: var(--text-dim); margin-top: 10px;">Je betaalt veilig via Stripe op het volgende scherm. Je boeking is bevestigd zodra de betaling lukt &mdash; niet pas na een controle.</div>
   </form>
 </div>
 

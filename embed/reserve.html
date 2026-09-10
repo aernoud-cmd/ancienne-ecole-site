@@ -156,9 +156,21 @@
     <div id="ae-price-breakdown" style="padding: 18px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin-bottom: 22px; transition: opacity 0.15s;">
     </div>
 
-    <button class="btn-primary" type="submit" id="ae-booking-submit">Send booking request</button>
+    
+    <div class="field" style="margin-bottom: 18px;">
+      <details style="border:1px solid var(--line); border-radius:2px; padding:10px 14px; margin-bottom:10px;">
+        <summary style="cursor:pointer; font-size:13px; color:var(--text-dim); letter-spacing:0.3px;">Booking terms, cancellation &amp; deposit</summary>
+        <p style="font-size:12.5px; line-height:1.6; color:var(--text-dim); margin:10px 0 0;">You are booking directly with L&#39;Ancienne &Eacute;cole for the exact dates and price shown above. Payment is taken securely via Stripe on the next screen; your booking is confirmed the instant that payment succeeds &mdash; this is a real, immediate booking, not a request. The tourist tax is a local government charge collected on the owner&#39;s behalf. The refundable security deposit is charged together with the rest, and returned by bank transfer after your stay once the house has been checked for damage. To change or cancel a paid booking, please contact us directly &mdash; we&#39;ll confirm the terms that apply to your situation individually.</p>
+      </details>
+      <label style="display:flex; align-items:flex-start; gap:8px; cursor:pointer; font-size:13px; color:var(--text-dim); text-transform:none; letter-spacing:normal;">
+        <input type="checkbox" id="terms-accept" style="margin-top:3px;">
+        <span>I have read and accept the terms above.</span>
+      </label>
+    </div>
+
+    <button class="btn-primary" type="submit" id="ae-booking-submit">Proceed to secure payment</button>
     <div id="ae-booking-status" style="text-align: center; font-size: 13px; margin-top: 14px; min-height: 18px;"></div>
-    <div style="text-align: center; font-size: 12px; color: var(--text-dim); margin-top: 10px;">No payment now &mdash; Aernoud reviews every request personally and confirms within 24h, with a secure payment link.</div>
+    <div style="text-align: center; font-size: 12px; color: var(--text-dim); margin-top: 10px;">You&#39;ll pay securely via Stripe on the next screen. Your booking is confirmed the instant payment succeeds &mdash; not after a review.</div>
   </form>
 </div>
 

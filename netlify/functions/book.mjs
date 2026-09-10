@@ -1,8 +1,14 @@
 // POST /.netlify/functions/book
-// Receives a booking request from the reserve-page form. Never auto-confirms:
-// it stores the request as "pending" (requested — awaiting the owner's
-// personal approval) and notifies the owner (email + WhatsApp), who
-// approves or declines via the signed links in that notification.
+// Receives a booking submission from the reserve-page form and immediately
+// creates a Stripe Checkout Session for the exact quoted total — there is no
+// separate owner-approval step before payment any more (see README/spec
+// section 3, "direct Stripe Checkout"). The booking is stored right away as
+// "awaiting_payment" — a temporary hold on the nights, not a confirmation —
+// and only ever becomes "confirmed" once stripe-webhook.mjs sees a verified
+// `checkout.session.completed` event for it. If the guest never finishes
+// paying, the hold expires on its own (see _lib/availability.mjs
+// effectiveStatus() and settings.checkoutHoldMinutes) and the nights become
+// bookable again.
 import { randomUUID } from "node:crypto";
 import {
   getPricingSettings,
@@ -14,9 +20,10 @@ import {
 } from "./_lib/store.mjs";
 import { computeAvailability } from "./_lib/availability.mjs";
 import { isValidISODate, nightsBetween } from "./_lib/dates.mjs";
-import { signAction } from "./_lib/token.mjs";
-import { sendOwnerBookingAlert, sendGuestEmail } from "./_lib/notify.mjs";
+import { createCheckoutSession } from "./_lib/stripe.mjs";
+import { siteBaseUrl } from "./_lib/notify.mjs";
 import { calculateQuote, QuoteError } from "./_lib/pricing.mjs";
+import { CURRENT_TERMS_VERSION } from "./_lib/terms.mjs";
 
 export default async (req) => {
   if (req.method !== "POST") {
@@ -30,7 +37,7 @@ export default async (req) => {
     return json({ ok: false, error: "Invalid JSON body" }, 400);
   }
 
-  const { checkin, checkout, adults, children, name, email, phone, message, lang } = body || {};
+  const { checkin, checkout, adults, children, name, email, phone, message, lang, termsAccepted } = body || {};
 
   if (!isValidISODate(checkin) || !isValidISODate(checkout)) {
     return json({ ok: false, error: "Invalid dates" }, 400);
@@ -43,6 +50,14 @@ export default async (req) => {
   if (!name || !email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return json({ ok: false, error: "Please provide a valid name and email" }, 400);
   }
+  // The guest must have explicitly seen and accepted the terms/cancellation/
+  // deposit copy before a Checkout Session is ever created — enforced here
+  // server-side, not only as a disabled-button state in the browser, since
+  // this is what later lets us honestly say a specific guest agreed to a
+  // specific version of those terms (see README/spec section 10).
+  if (termsAccepted !== true) {
+    return json({ ok: false, code: "TERMS_NOT_ACCEPTED", error: "Please accept the terms to continue." }, 400);
+  }
 
   const [settings, rates] = await Promise.all([
     getPricingSettings({ strong: true }),
@@ -50,7 +65,8 @@ export default async (req) => {
   ]);
 
   // Price + business-rule validation (capacity, minimum stay, allowed
-  // arrival day, missing rates) — all in one place, see _lib/pricing.mjs.
+  // arrival day, Saturday-turnover weeks, missing rates) — all in one
+  // place, see _lib/pricing.mjs.
   let quote;
   try {
     quote = calculateQuote({ checkin, checkout, adults: nAdults, children: nChildren }, settings, rates);
@@ -61,7 +77,10 @@ export default async (req) => {
   }
 
   // Re-check availability server-side, with a strongly-consistent read —
-  // never trust the client's calendar state.
+  // never trust the client's calendar state. This also checks against every
+  // OTHER booking currently "awaiting_payment" (someone else mid-Checkout
+  // right now), which is exactly what stops two guests from both paying for
+  // the same nights.
   const { busyNights } = await computeAvailability(settings, { strong: true });
   const nights = nightsBetween(checkin, checkout);
   if (nights.some((n) => busyNights.has(n))) {
@@ -71,14 +90,19 @@ export default async (req) => {
   const id = randomUUID();
 
   // Best-effort claim on every night in the stay, to narrow (not, honestly,
-  // eliminate) the window where two simultaneous requests could both think
-  // the same nights are free — see store.claimNights() for exactly what
-  // this does and doesn't guarantee, and README "Availability & double
-  // bookings" for the real guarantee (enforced in respond.mjs at approval).
+  // eliminate) the window where two simultaneous submissions could both
+  // think the same nights are free. This is a temporary hold: it lasts only
+  // as long as settings.checkoutHoldMinutes (see effectiveStatus()), after
+  // which the booking's own "awaiting_payment" -> "payment_expired"
+  // transition is what actually matters for availability — this
+  // night-locks claim is just the same short-window race mitigation
+  // book.mjs has always used, unrelated to the payment itself.
   const claim = await claimNights(nights, id);
   if (!claim.ok) {
     return json({ ok: false, code: "DATES_UNAVAILABLE" }, 409);
   }
+
+  const bookingLang = ["en", "fr", "nl"].includes(lang) ? lang : "en";
 
   const booking = {
     id,
@@ -91,23 +115,34 @@ export default async (req) => {
     email: String(email).slice(0, 200),
     phone: phone ? String(phone).slice(0, 60) : "",
     message: message ? String(message).slice(0, 1000) : "",
-    lang: ["en", "fr", "nl"].includes(lang) ? lang : "en",
-    // "pending" = requested, awaiting the owner's personal approval.
-    // "confirmed" = approved by the owner (a payment link has been sent).
-    // "paid" is a separate boolean on top of "confirmed" — see stripe-webhook.mjs.
-    // "declined" / "expired_unanswered" / "expired_unpaid" release the dates.
-    status: "pending",
+    lang: bookingLang,
+    // "awaiting_payment" = Checkout Session created, temporary hold on the
+    //   nights, NOT yet a confirmed booking. Expires on its own if unpaid —
+    //   see _lib/availability.mjs effectiveStatus().
+    // "confirmed" = Stripe has confirmed payment (stripe-webhook.mjs) — the
+    //   only way a booking ever reaches this status now. Always paid: true.
+    // "payment_expired" = the Checkout Session (or the hold itself) expired
+    //   before payment; dates released.
+    // "cancelled" = owner cancelled, from /admin — before or after payment;
+    //   see admin-booking-action.mjs for the paid-vs-unpaid distinction and
+    //   the refund flow.
+    // Older bookings created before this change may still carry "pending" /
+    // "declined" / "expired_unanswered" / "expired_unpaid" from the previous
+    // manual-approval flow (see respond.mjs) — those are read-only history
+    // now, this endpoint never creates them.
+    status: "awaiting_payment",
     createdAt: new Date().toISOString(),
-    approveSig: signAction(id, "approve"),
-    declineSig: signAction(id, "decline"),
     // The full price breakdown AND the settings that produced it, frozen at
     // request time. Never recomputed later — a subsequent price change on
-    // /admin must not silently change what this guest was already shown.
+    // /admin must not silently change what this guest is actually charged.
     quote,
     paid: false,
+    termsAccepted: true,
+    termsVersion: CURRENT_TERMS_VERSION,
+    termsAcceptedAt: new Date().toISOString(),
     history: [],
   };
-  pushHistory(booking, "requested");
+  pushHistory(booking, "awaiting_payment");
 
   try {
     await saveBooking(id, booking);
@@ -116,10 +151,38 @@ export default async (req) => {
     throw e;
   }
 
-  const notifyResult = await sendOwnerBookingAlert(booking);
-  const guestResult = await sendGuestEmail(booking, "received");
+  const base = siteBaseUrl();
+  const returnPath = { en: "/reserve.html", fr: "/fr/reserve.html", nl: "/nl/reserve.html" }[bookingLang];
+  let checkoutUrl;
+  try {
+    const session = await createCheckoutSession(booking, {
+      // "pmt" (not "checkout") on purpose — this page already uses a
+      // `checkout` query param for the guest's chosen departure DATE (see
+      // assets/booking.js restoreStateFromURL()); reusing that name here
+      // for "return"/"cancelled" would silently collide with it.
+      successUrl: `${base}${returnPath}?booking=${id}&pmt=return`,
+      cancelUrl: `${base}${returnPath}?booking=${id}&pmt=cancelled`,
+      holdMinutes: settings.checkoutHoldMinutes ?? 45,
+    });
+    booking.stripeCheckoutSessionId = session.id;
+    booking.stripeCheckoutSessionExpiresAt = session.expiresAt;
+    pushHistory(booking, "checkout_session_created", { stripeCheckoutSessionId: session.id });
+    await saveBooking(id, booking);
+    checkoutUrl = session.url;
+  } catch (e) {
+    // Could not even create the Checkout Session — release the hold
+    // immediately rather than leaving a dead "awaiting_payment" booking
+    // sitting on nights nobody can actually pay for.
+    booking.status = "payment_expired";
+    booking.checkoutSessionError = e.message;
+    pushHistory(booking, "checkout_session_error", { error: e.message });
+    await saveBooking(id, booking);
+    await releaseNights(nights, id);
+    console.error("book.mjs: could not create Stripe Checkout Session:", e.message);
+    return json({ ok: false, error: "Could not start payment right now. Please try again shortly." }, 502);
+  }
 
-  return json({ ok: true, id, notify: notifyResult, guestEmail: guestResult });
+  return json({ ok: true, id, checkoutUrl });
 };
 
 function json(obj, status = 200) {

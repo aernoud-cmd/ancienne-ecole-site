@@ -67,6 +67,16 @@ export const DEFAULT_SETTINGS = {
   // blocks new ones just because the sweep hasn't run yet).
   pendingRequestExpiryHours: 48,
   unpaidApprovedExpiryHours: 72,
+
+  // How long a guest has to finish paying in Stripe Checkout before their
+  // temporary hold on the nights is released again. Stripe itself requires
+  // a Checkout Session's `expires_at` to be between 30 minutes and 24 hours
+  // from creation — this is clamped to that range wherever it's used (see
+  // _lib/stripe.mjs createCheckoutSession()). Short on purpose: this is a
+  // guest actively paying right now, not an owner reviewing a request over
+  // a day or two (that's pendingRequestExpiryHours, kept only for any
+  // legacy request-flow bookings already in the data).
+  checkoutHoldMinutes: 45,
 };
 
 export function mergeWithDefaults(saved) {

@@ -31,10 +31,7 @@
     en: {
       selectRange: "Select your check-in and check-out dates on the calendar",
       nightsLabel: (n) => `${n} night${n === 1 ? "" : "s"} selected`,
-      sending: "Sending…",
       submit: "Send booking request",
-      successTitle: "Request sent!",
-      successBody: "Thank you — this is a REQUEST, not yet a confirmed booking. Aernoud checks it against the calendar personally and approves or declines it within 24 hours. You'll hear from him by email either way.",
       errorGeneric: "Something went wrong sending your request. Please try again, or reach out directly.",
       pickBothDates: "Please select both a check-in and a check-out date on the calendar.",
       fillNameEmail: "Please fill in your name and a valid email address.",
@@ -76,14 +73,26 @@
       dayNoPrice: "not yet open for booking",
       minStaySuffix: (n) => `, minimum stay if arriving here: ${n} nights`,
       minStayNote: (n) => `Minimum stay: ${n} nights (some periods require longer — the calendar and price will tell you).`,
+      termsHeading: "Booking terms, cancellation & deposit",
+      termsBody:
+        "You are booking directly with L'Ancienne École for the exact dates and price shown above. Payment is taken securely via Stripe on the next screen; your booking is confirmed the instant that payment succeeds — this is a real, immediate booking, not a request. The tourist tax is a local government charge collected on the owner's behalf. The refundable security deposit is charged together with the rest, and returned by bank transfer after your stay once the house has been checked for damage. To change or cancel a paid booking, please contact us directly — we'll confirm the terms that apply to your situation individually.",
+      termsCheckboxLabel: "I have read and accept the terms above.",
+      termsRequired: "Please accept the booking terms to continue.",
+      submitPay: "Proceed to secure payment",
+      redirecting: "Redirecting to secure payment…",
+      directPaymentNote: "You'll pay securely via Stripe on the next screen. Your booking is confirmed the instant payment succeeds — not after a review.",
+      confirmingPayment: "Confirming your payment…",
+      paymentConfirmedTitle: "Payment received — you're booked!",
+      paymentConfirmedBody: (checkin, checkout) => `Your stay from <b>${checkin}</b> to <b>${checkout}</b> is confirmed and paid. A confirmation email is on its way.`,
+      paymentStillProcessingTitle: "Almost there…",
+      paymentStillProcessingBody: "We're still confirming your payment with Stripe. This can take a moment on some payment methods — you'll receive a confirmation email as soon as it's done, so feel free to close this page.",
+      paymentNotCompletedTitle: "Payment not completed",
+      paymentNotCompletedBody: "Your payment wasn't completed, so these dates were not booked and nothing was charged. Feel free to select dates and try again.",
     },
     fr: {
       selectRange: "Sélectionnez vos dates d'arrivée et de départ sur le calendrier",
       nightsLabel: (n) => `${n} nuit${n === 1 ? "" : "s"} sélectionnée${n === 1 ? "" : "s"}`,
-      sending: "Envoi…",
       submit: "Envoyer la demande de réservation",
-      successTitle: "Demande envoyée !",
-      successBody: "Merci — ceci est une DEMANDE, pas encore une réservation confirmée. Aernoud la vérifie personnellement et l'approuve ou la refuse sous 24 heures. Vous recevrez sa réponse par e-mail dans les deux cas.",
       errorGeneric: "Une erreur est survenue lors de l'envoi. Merci de réessayer, ou contactez-nous directement.",
       pickBothDates: "Merci de sélectionner une date d'arrivée et une date de départ sur le calendrier.",
       fillNameEmail: "Merci de renseigner votre nom et une adresse e-mail valide.",
@@ -125,14 +134,26 @@
       dayNoPrice: "pas encore ouvert à la réservation",
       minStaySuffix: (n) => `, séjour minimum en arrivant ici : ${n} nuits`,
       minStayNote: (n) => `Séjour minimum : ${n} nuits (certaines périodes exigent plus — le calendrier et le prix vous le préciseront).`,
+      termsHeading: "Conditions de réservation, annulation et caution",
+      termsBody:
+        "Vous réservez directement auprès de L'Ancienne École pour les dates et le prix exacts indiqués ci-dessus. Le paiement s'effectue en toute sécurité via Stripe à l'écran suivant ; votre réservation est confirmée dès que ce paiement aboutit — il s'agit d'une réservation réelle et immédiate, pas d'une demande. La taxe de séjour est une taxe locale collectée pour le compte de la commune. La caution remboursable est débitée en même temps que le reste, puis restituée par virement après votre séjour une fois la maison vérifiée. Pour modifier ou annuler une réservation payée, merci de nous contacter directement — nous confirmerons avec vous les conditions applicables à votre situation.",
+      termsCheckboxLabel: "J'ai lu et j'accepte les conditions ci-dessus.",
+      termsRequired: "Merci d'accepter les conditions de réservation pour continuer.",
+      submitPay: "Procéder au paiement sécurisé",
+      redirecting: "Redirection vers le paiement sécurisé…",
+      directPaymentNote: "Vous paierez en toute sécurité via Stripe à l'écran suivant. Votre réservation est confirmée dès que le paiement aboutit — pas après une vérification.",
+      confirmingPayment: "Confirmation de votre paiement…",
+      paymentConfirmedTitle: "Paiement reçu — c'est réservé !",
+      paymentConfirmedBody: (checkin, checkout) => `Votre séjour du <b>${checkin}</b> au <b>${checkout}</b> est confirmé et payé. Un e-mail de confirmation est en route.`,
+      paymentStillProcessingTitle: "Presque terminé…",
+      paymentStillProcessingBody: "Nous confirmons encore votre paiement auprès de Stripe. Cela peut prendre un instant selon le moyen de paiement — vous recevrez un e-mail de confirmation dès que ce sera fait, vous pouvez donc fermer cette page.",
+      paymentNotCompletedTitle: "Paiement non finalisé",
+      paymentNotCompletedBody: "Votre paiement n'a pas été finalisé, ces dates n'ont donc pas été réservées et rien n'a été débité. N'hésitez pas à choisir des dates et réessayer.",
     },
     nl: {
       selectRange: "Selecteer je aankomst- en vertrekdatum in de kalender",
       nightsLabel: (n) => `${n} nacht${n === 1 ? "" : "en"} geselecteerd`,
-      sending: "Bezig met versturen…",
       submit: "Boekingsaanvraag versturen",
-      successTitle: "Aanvraag verstuurd!",
-      successBody: "Dank je — dit is een AANVRAAG, nog geen bevestigde boeking. Aernoud controleert 'm persoonlijk en keurt 'm binnen 24 uur goed of af. Je hoort in beide gevallen per e-mail van hem.",
       errorGeneric: "Er ging iets mis bij het versturen. Probeer het opnieuw, of neem rechtstreeks contact op.",
       pickBothDates: "Selecteer zowel een aankomst- als een vertrekdatum in de kalender.",
       fillNameEmail: "Vul je naam en een geldig e-mailadres in.",
@@ -174,6 +195,21 @@
       dayNoPrice: "nog niet open voor boeking",
       minStaySuffix: (n) => `, minimumverblijf bij aankomst hier: ${n} nachten`,
       minStayNote: (n) => `Minimumverblijf: ${n} nachten (voor sommige periodes geldt een langer minimum — de kalender en de prijs geven dit aan).`,
+      termsHeading: "Boekingsvoorwaarden, annulering & borg",
+      termsBody:
+        "Je boekt rechtstreeks bij L'Ancienne École voor de exacte data en prijs hierboven. Betalen gebeurt veilig via Stripe op het volgende scherm; je boeking is bevestigd zodra die betaling lukt — dit is een echte, directe boeking, geen aanvraag. De toeristenbelasting is een gemeentelijke heffing die namens de gemeente wordt geïnd. De terugbetaalbare borg wordt samen met de rest afgerekend en na je verblijf per bankoverschrijving terugbetaald zodra het huis is gecontroleerd. Wil je een betaalde boeking wijzigen of annuleren, neem dan rechtstreeks contact met ons op — we bevestigen dan samen met jou welke voorwaarden voor jouw situatie gelden.",
+      termsCheckboxLabel: "Ik heb de voorwaarden hierboven gelezen en ga ermee akkoord.",
+      termsRequired: "Accepteer de boekingsvoorwaarden om door te gaan.",
+      submitPay: "Doorgaan naar veilig betalen",
+      redirecting: "Doorverwijzen naar veilig betalen…",
+      directPaymentNote: "Je betaalt veilig via Stripe op het volgende scherm. Je boeking is bevestigd zodra de betaling lukt — niet pas na een controle.",
+      confirmingPayment: "Je betaling wordt bevestigd…",
+      paymentConfirmedTitle: "Betaling ontvangen — je bent geboekt!",
+      paymentConfirmedBody: (checkin, checkout) => `Je verblijf van <b>${checkin}</b> t/m <b>${checkout}</b> is bevestigd en betaald. Een bevestigingsmail is onderweg.`,
+      paymentStillProcessingTitle: "Bijna klaar…",
+      paymentStillProcessingBody: "We bevestigen je betaling nog bij Stripe. Dit kan bij sommige betaalmethoden even duren — je ontvangt een bevestigingsmail zodra het rond is, dus je kunt deze pagina gerust sluiten.",
+      paymentNotCompletedTitle: "Betaling niet voltooid",
+      paymentNotCompletedBody: "Je betaling is niet voltooid, dus deze data zijn niet geboekt en er is niets afgeschreven. Kies gerust data en probeer het opnieuw.",
     },
   };
 
@@ -772,6 +808,12 @@
       showStatus(t.rangeUnavailable, true);
       return false;
     }
+    const termsEl = document.getElementById("terms-accept");
+    if (termsEl && !termsEl.checked) {
+      showStatus(t.termsRequired, true);
+      termsEl.focus();
+      return false;
+    }
 
     const { adults, children } = getPartySize();
     const payload = {
@@ -784,10 +826,11 @@
       phone: document.getElementById("guest-phone").value.trim(),
       message: document.getElementById("guest-message") ? document.getElementById("guest-message").value.trim() : "",
       lang,
+      termsAccepted: termsEl ? termsEl.checked : true,
     };
 
     btn.disabled = true;
-    btn.textContent = t.sending;
+    btn.textContent = t.redirecting;
     showStatus("", false);
 
     try {
@@ -805,18 +848,19 @@
         if (data.code === "CAPACITY_EXCEEDED") throw new Error(t.capacityExceeded(data.details));
         if (data.code === "ARRIVAL_DAY_NOT_ALLOWED") throw new Error(t.arrivalDayNotAllowed);
         if (data.code === "SATURDAY_TURNOVER_REQUIRED") throw new Error(t.saturdayTurnoverRequired);
+        if (data.code === "TERMS_NOT_ACCEPTED") throw new Error(t.termsRequired);
         throw new Error(data.error || t.errorGeneric);
       }
-      showSuccess(t.successTitle, t.successBody);
-      busyNights = new Set([...busyNights, ...nightsInRange(selStart, selEnd)]);
-      pendingNights = new Set([...pendingNights, ...nightsInRange(selStart, selEnd)]);
-      selStart = null;
-      selEnd = null;
-      renderCalendar();
+      // Full-page navigation to Stripe's own hosted Checkout page — payment
+      // happens there, never on this site. The booking is only ever
+      // confirmed later, via stripe-webhook.mjs, once Stripe verifies the
+      // payment actually succeeded; this redirect itself confirms nothing.
+      window.location.href = data.checkoutUrl;
+      return false;
     } catch (e) {
       showStatus(e.message || t.errorGeneric, true);
       btn.disabled = false;
-      btn.textContent = t.submit;
+      btn.textContent = t.submitPay || t.submit;
     }
     return false;
   }
@@ -839,6 +883,74 @@
       </div>`;
   }
 
+  // Handles the guest landing back on this page after Stripe Checkout —
+  // either success_url (?booking=<id>&pmt=return) or cancel_url
+  // (?booking=<id>&pmt=cancelled), both set by book.mjs. Deliberately named
+  // "pmt", not "checkout" — this page already uses a `checkout` query param
+  // for the guest's chosen departure DATE (see restoreStateFromURL() above),
+  // so reusing that name here would silently collide with it. This redirect
+  // itself is NEVER treated as proof of payment (see submitBooking's own
+  // comment) — it only decides what to show while the real confirmation
+  // (stripe-webhook.mjs) does its work, by polling the minimal, public
+  // booking-status.mjs endpoint a few times. Removes the query params
+  // afterwards so a page refresh doesn't re-trigger this.
+  async function checkPostRedirectStatus() {
+    const params = new URLSearchParams(window.location.search);
+    const bookingId = params.get("booking");
+    const pmtParam = params.get("pmt");
+    if (!bookingId || !pmtParam) return;
+
+    const t = STRINGS[lang];
+    const cleanUrl = () => {
+      params.delete("booking");
+      params.delete("pmt");
+      const qs = params.toString();
+      window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
+    };
+
+    if (pmtParam === "cancelled") {
+      showSuccess(t.paymentNotCompletedTitle, t.paymentNotCompletedBody);
+      cleanUrl();
+      return;
+    }
+    if (pmtParam !== "return") return;
+
+    showSuccess(t.confirmingPayment, "");
+
+    const maxAttempts = 6;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const res = await fetch(`/.netlify/functions/booking-status?id=${encodeURIComponent(bookingId)}`);
+        const data = await res.json();
+        if (res.ok && data.ok) {
+          if (data.status === "confirmed" && data.paid) {
+            showSuccess(t.paymentConfirmedTitle, t.paymentConfirmedBody(data.checkin, data.checkout));
+            cleanUrl();
+            return;
+          }
+          if (["payment_expired", "cancelled"].includes(data.status)) {
+            showSuccess(t.paymentNotCompletedTitle, t.paymentNotCompletedBody);
+            cleanUrl();
+            return;
+          }
+          // Still "awaiting_payment" — the webhook hasn't landed yet (some
+          // payment methods settle asynchronously). Keep polling briefly.
+        }
+      } catch (e) {
+        // A transient fetch failure here just means one fewer poll attempt
+        // — not worth surfacing as an error to a guest who has, in every
+        // realistic case, already actually paid.
+      }
+      if (attempt < maxAttempts) await new Promise((r) => setTimeout(r, 1500));
+    }
+    // Still not confirmed after polling — payment may be genuinely delayed
+    // (async payment method) rather than failed. Say so honestly instead of
+    // guessing either way; the confirmation email is the real source of
+    // truth once stripe-webhook.mjs catches up.
+    showSuccess(t.paymentStillProcessingTitle, t.paymentStillProcessingBody);
+    cleanUrl();
+  }
+
   window.AE_BOOKING = {
     init(initLang) {
       lang = ["en", "fr", "nl"].includes(initLang) ? initLang : "en";
@@ -848,6 +960,7 @@
       restoreStateFromURL();
       wireLanguageSwitchLinks();
       loadAvailability();
+      checkPostRedirectStatus();
 
       const adultsEl = document.getElementById("adults");
       const childrenEl = document.getElementById("children");

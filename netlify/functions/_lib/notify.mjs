@@ -10,7 +10,7 @@
 import { Resend } from "resend";
 import twilio from "twilio";
 
-function siteBaseUrl() {
+export function siteBaseUrl() {
   // Netlify sets URL to the site's primary production URL at runtime.
   return process.env.URL || process.env.DEPLOY_PRIME_URL || "https://ancienne-ecole.rent";
 }
@@ -204,6 +204,24 @@ const GUEST_COPY = {
          }
          <p>Please don't hesitate to reach out with any questions.</p>`,
     },
+    paymentExpired: {
+      subject: "Your payment window has expired — L'Ancienne École",
+      body: (b) =>
+        `<p>Hello ${b.name} — the payment window for your stay request (<b>${b.checkin} to ${b.checkout}</b>) has expired without a completed payment, so those dates have been released again.</p>
+         <p>No charge was made. If you'd still like to book, please visit the site again to check availability and complete a new booking.</p>`,
+    },
+    refundPending: {
+      subject: "Your cancellation and refund are being processed — L'Ancienne École",
+      body: (b) =>
+        `<p>Hello ${b.name} — your booking for <b>${b.checkin} to ${b.checkout}</b> has been cancelled and a refund of <b>${fmtMoneyCents(b.pendingRefundAmountCents, b.quote?.currency)}</b> has been started.</p>
+         <p>Refunds can take a few business days to appear on your statement, depending on your bank or card provider. We'll let you know once Stripe confirms it's complete.</p>`,
+    },
+    refundSuccess: {
+      subject: "Your refund is complete — L'Ancienne École",
+      body: (b) =>
+        `<p>Hello ${b.name} — the refund of <b>${fmtMoneyCents(b.lastRefundAmountCents, b.quote?.currency)}</b> for your cancelled stay (<b>${b.checkin} to ${b.checkout}</b>) has been completed by Stripe.</p>
+         <p>Please allow a few business days for it to appear on your statement. We're sorry things didn't work out this time, and hope to welcome you another time.</p>`,
+    },
   },
   fr: {
     received: {
@@ -247,6 +265,24 @@ const GUEST_COPY = {
          }
          <p>N'hésitez pas à nous contacter pour toute question.</p>`,
     },
+    paymentExpired: {
+      subject: "Votre délai de paiement a expiré — L'Ancienne École",
+      body: (b) =>
+        `<p>Bonjour ${b.name} — le délai de paiement pour votre demande de séjour (<b>${b.checkin} au ${b.checkout}</b>) a expiré sans paiement complété, ces dates ont donc été libérées.</p>
+         <p>Aucun montant n'a été débité. Si vous souhaitez toujours réserver, merci de revenir sur le site pour vérifier les disponibilités et effectuer une nouvelle réservation.</p>`,
+    },
+    refundPending: {
+      subject: "Votre annulation et remboursement sont en cours — L'Ancienne École",
+      body: (b) =>
+        `<p>Bonjour ${b.name} — votre réservation du <b>${b.checkin} au ${b.checkout}</b> a été annulée et un remboursement de <b>${fmtMoneyCents(b.pendingRefundAmountCents, b.quote?.currency)}</b> a été lancé.</p>
+         <p>Les remboursements peuvent prendre quelques jours ouvrés avant d'apparaître sur votre relevé, selon votre banque. Nous vous confirmerons dès que Stripe l'aura finalisé.</p>`,
+    },
+    refundSuccess: {
+      subject: "Votre remboursement est terminé — L'Ancienne École",
+      body: (b) =>
+        `<p>Bonjour ${b.name} — le remboursement de <b>${fmtMoneyCents(b.lastRefundAmountCents, b.quote?.currency)}</b> pour votre séjour annulé (<b>${b.checkin} au ${b.checkout}</b>) a été finalisé par Stripe.</p>
+         <p>Merci de patienter quelques jours ouvrés pour qu'il apparaisse sur votre relevé. Nous sommes désolés que cela n'ait pas fonctionné cette fois-ci et espérons vous accueillir une prochaine fois.</p>`,
+    },
   },
   nl: {
     received: {
@@ -289,6 +325,24 @@ const GUEST_COPY = {
              : ""
          }
          <p>Neem gerust contact op als je vragen hebt.</p>`,
+    },
+    paymentExpired: {
+      subject: "Je betaaltermijn is verlopen — L'Ancienne École",
+      body: (b) =>
+        `<p>Hallo ${b.name} — de betaaltermijn voor je verblijfsaanvraag (<b>${b.checkin} t/m ${b.checkout}</b>) is verlopen zonder voltooide betaling, dus die data zijn weer vrijgegeven.</p>
+         <p>Er is niets afgeschreven. Wil je alsnog boeken, ga dan terug naar de site om de beschikbaarheid te checken en een nieuwe boeking te plaatsen.</p>`,
+    },
+    refundPending: {
+      subject: "Je annulering en terugbetaling worden verwerkt — L'Ancienne École",
+      body: (b) =>
+        `<p>Hallo ${b.name} — je boeking voor <b>${b.checkin} t/m ${b.checkout}</b> is geannuleerd en er is een terugbetaling van <b>${fmtMoneyCents(b.pendingRefundAmountCents, b.quote?.currency)}</b> gestart.</p>
+         <p>Terugbetalingen kunnen een paar werkdagen duren voordat ze op je afschrift verschijnen, afhankelijk van je bank. We laten je weten zodra Stripe bevestigt dat het voltooid is.</p>`,
+    },
+    refundSuccess: {
+      subject: "Je terugbetaling is voltooid — L'Ancienne École",
+      body: (b) =>
+        `<p>Hallo ${b.name} — de terugbetaling van <b>${fmtMoneyCents(b.lastRefundAmountCents, b.quote?.currency)}</b> voor je geannuleerde verblijf (<b>${b.checkin} t/m ${b.checkout}</b>) is door Stripe voltooid.</p>
+         <p>Het kan nog een paar werkdagen duren voordat het op je afschrift verschijnt. Onze excuses dat het deze keer niet is gelukt — we hopen je een andere keer te mogen verwelkomen.</p>`,
     },
   },
 };

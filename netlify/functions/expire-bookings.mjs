@@ -18,11 +18,18 @@ export default async () => {
   let expiredCount = 0;
 
   for (const b of bookings) {
-    if (b.status !== "pending" && !(b.status === "confirmed" && !b.paid)) continue;
+    const canExpire =
+      b.status === "pending" || (b.status === "confirmed" && !b.paid) || b.status === "awaiting_payment";
+    if (!canExpire) continue;
     const status = effectiveStatus(b, settings);
     if (status === b.status) continue; // not expired
 
-    b.status = status; // "expired_unanswered" | "expired_unpaid"
+    // "awaiting_payment" -> "payment_expired" bookings are normally already
+    // caught the moment Stripe's own Checkout Session expiry fires
+    // (stripe-webhook.mjs's checkout.session.expired handler) — this sweep
+    // is the belt-and-suspenders backstop for a missed/delayed webhook
+    // delivery, same role it already plays for the legacy request flow.
+    b.status = status; // "expired_unanswered" | "expired_unpaid" | "payment_expired"
     b.expiredAt = new Date().toISOString();
     pushHistory(b, status, { by: "scheduled-sweep" });
     await saveBooking(b.id, b);
