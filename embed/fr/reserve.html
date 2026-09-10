@@ -32,7 +32,13 @@
      border) and the text read as dim/grey on the real site, so --text/
      --text-dim are brighter here and a --line-strong border+fill was
      added specifically for the calendar tiles (see .day / booking.js) —
-     kept in sync with assets/style.css's :root, not re-diverged. */
+     kept in sync with assets/style.css's :root, not re-diverged. Fifth
+     pass: on a real month that's mostly booked/not-yet-priced, the fill
+     hierarchy was backwards — booked/pending days used --bg-panel2
+     (lighter) while available days used --bg-panel (darker), so the
+     free days didn't stand out. Swapped: available now gets its own
+     lighter --bg-available fill; booked/pending now use the darker
+     --bg-panel and recede. */
   :root {
     --bg: #0b0b09;
     --bg-panel: #151310;
@@ -43,6 +49,7 @@
     --gold-soft: #8a7752;
     --line: rgba(201,167,105,0.28);
     --line-strong: rgba(201,167,105,0.55);
+    --bg-available: #2c2517;
   }
   body { padding: 24px 16px 32px; background: var(--bg); }
   .wrap { max-width: 1080px; margin: 0 auto; padding: 0; }

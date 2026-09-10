@@ -426,7 +426,13 @@
       const isCandidateCheckout = !isPast && selStart && !selEnd && dateISO > selStart;
       const validAsCheckout = isCandidateCheckout && rangeIsFree(selStart, dateISO);
 
-      let style = "border:1px solid var(--line-strong);background:var(--bg-panel);cursor:pointer;";
+      // Available/bookable days get the LIGHTEST fill of any state (see
+      // --bg-available) so a free week visibly pops out of a mostly-
+      // booked/not-yet-priced month, rather than blending into it. Booked
+      // and pending days deliberately get a darker fill than that (see
+      // isBusy/isPending below) — they're not the ones a guest should be
+      // drawn to.
+      let style = "border:1px solid var(--line-strong);background:var(--bg-available);cursor:pointer;";
       let statusWord = t.dayAvailable;
       if (isPast) {
         style = "color: var(--text-dim); opacity: 0.35;";
@@ -444,11 +450,13 @@
         statusWord = t.dayOwnBlocked;
         if (validAsCheckout) style += "cursor:pointer;";
       } else if (isBusy) {
-        style = "background: var(--bg-panel2); color: var(--text-dim); text-decoration: line-through;";
+        // Darker than --bg-available on purpose — a booked day should
+        // recede, not compete visually with the free days around it.
+        style = "background: var(--bg-panel); color: var(--text-dim); text-decoration: line-through;";
         statusWord = t.dayBooked;
         if (validAsCheckout) style += "cursor:pointer;border:1px dashed var(--gold-soft);";
       } else if (isPending) {
-        style = "background: var(--bg-panel2); color: var(--text-dim); border: 1px dashed var(--gold-soft);";
+        style = "background: var(--bg-panel); color: var(--text-dim); border: 1px dashed var(--gold-soft);";
         statusWord = t.dayRequested;
       } else if (isNoPrice) {
         style = "color: var(--text-dim); border: 1px dashed var(--line-strong); opacity: 0.55;";

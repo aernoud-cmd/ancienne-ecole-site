@@ -12,6 +12,11 @@
      left as-is everywhere else (buttons, dividers, inputs) so this fix
      doesn't ripple across parts of the site nobody flagged as unclear. */
   --line-strong: rgba(201,167,105,0.55);
+  /* The one fill day tiles should visually compete for: available/
+     bookable dates. Deliberately lighter than --bg-panel/--bg-panel2 (used
+     for booked/pending, which should recede) so a free week visibly pops
+     against a mostly-booked or not-yet-priced month. */
+  --bg-available: #2c2517;
 }
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
