@@ -4,10 +4,11 @@
   Paste this into a WordPress "Custom HTML" block (or your theme's raw-HTML
   area) on the page that should host the booking module. It is
   self-contained: no other script or stylesheet needs to be added to
-  WordPress for this to work, and the embedded module now uses a light,
-  transparent-background theme with calm gold accents instead of the main
-  site's dark one — it's meant to sit inside your existing page, not look
-  like a separate dark site dropped into it.
+  WordPress for this to work. The embedded module paints its own opaque
+  dark background — the exact same dark palette used everywhere else on
+  this site — rather than trying to blend transparently into whatever the
+  surrounding WordPress page happens to be, so it always looks correct
+  regardless of that page's own background color.
 
   PICK ONE BLOCK BELOW FOR THE LANGUAGE OF THIS PAGE and delete the other
   two — they're otherwise identical, only AE_EMBED_SRC (and the iframe's
@@ -39,9 +40,10 @@
      something this fragment needs to handle. (Stripe's own checkout also
      refuses to render inside an iframe on other sites, so this is the only
      approach that would work regardless.)
-   - Tested at 360px, 390px, 768px and full desktop width: no horizontal
-     overflow, no clipped buttons, no double scrollbar (see the project doc
-     for the exact live-test notes).
+   - Tested at 360px, 390px, 656px (the observed real WordPress column
+     width) and full desktop width: no horizontal overflow, no clipped
+     buttons, no double scrollbar (see the project doc for the exact
+     live-test notes).
 -->
 
 <!-- ==================== ENGLISH — use on an English-language page ==================== -->
@@ -50,7 +52,7 @@
     id="ae-booking-iframe"
     title="L'Ancienne École — availability and booking request"
     src="https://ancienne-ecole-troche.netlify.app/embed/reserve.html"
-    style="width: 100%; border: 0; display: block; overflow: hidden; background: transparent;"
+    style="width: 100%; border: 0; display: block; overflow: hidden;"
     height="900"
     loading="lazy"
   ></iframe>
@@ -62,7 +64,7 @@
     id="ae-booking-iframe"
     title="L'Ancienne École — disponibilités et demande de réservation"
     src="https://ancienne-ecole-troche.netlify.app/embed/fr/reserve.html"
-    style="width: 100%; border: 0; display: block; overflow: hidden; background: transparent;"
+    style="width: 100%; border: 0; display: block; overflow: hidden;"
     height="900"
     loading="lazy"
   ></iframe>
@@ -75,7 +77,7 @@
     id="ae-booking-iframe"
     title="L'Ancienne École — beschikbaarheid en boekingsaanvraag"
     src="https://ancienne-ecole-troche.netlify.app/embed/nl/reserve.html"
-    style="width: 100%; border: 0; display: block; overflow: hidden; background: transparent;"
+    style="width: 100%; border: 0; display: block; overflow: hidden;"
     height="900"
     loading="lazy"
   ></iframe>

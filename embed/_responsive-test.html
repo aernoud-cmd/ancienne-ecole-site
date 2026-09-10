@@ -10,26 +10,37 @@
     Internal QA page only — NOT part of the guest-facing site, not linked
     from anywhere, and safe to delete at any time. Reproduces the real
     WordPress embedding scenario (a cross-origin <iframe> at a FIXED pixel
-    width, on a BLACK surrounding page — confirmed by the owner testing a
-    real WordPress draft page on 2026-09-10, which is why this harness's
-    own body is black too, not the light grey used before that finding).
-    656px is the real observed WordPress column width and comes first;
+    width). The module now paints its own OPAQUE dark background instead
+    of relying on the parent page being a particular color (an earlier
+    transparent version broke when the owner's WordPress draft page's own
+    background changed between tests) — so this harness deliberately puts
+    the same 656px-wide iframe on BOTH a black surround and a light one,
+    to prove it looks identical and correctly styled either way. 656px is
+    the real observed WordPress column width and comes first;
     360/390/768/1100 stay below as regression checks at other widths.
   */
   body { font-family: -apple-system, "Work Sans", sans-serif; background: #000; margin: 0; padding: 24px; }
   .row { margin-bottom: 48px; }
   .label { font: 600 13px/1.4 monospace; margin-bottom: 8px; background: #c9a769; color: #1a1408; display: inline-block; padding: 4px 10px; border-radius: 3px; }
   .frame-wrap { border: 2px dashed #c0392b; box-sizing: content-box; background: #000; position: relative; }
+  .frame-wrap.on-light { background: #f4f1ea; }
   .frame-wrap::after { content: attr(data-w); position: absolute; top: -1px; right: -2px; background: #c0392b; color: #fff; font: 11px monospace; padding: 2px 6px; transform: translateY(-100%); }
-  iframe { width: 100%; border: 0; display: block; overflow: hidden; background: transparent; }
+  iframe { width: 100%; border: 0; display: block; overflow: hidden; }
 </style>
 </head>
 <body>
 
 <div class="row">
-  <div class="label">656px — real WordPress column width, black page</div>
-  <div class="frame-wrap" data-w="656px" style="width:656px;">
-    <iframe id="f656" title="656px test" src="reserve.html" height="900"></iframe>
+  <div class="label">656px — real WordPress column width, black surround</div>
+  <div class="frame-wrap" data-w="656px on black" style="width:656px;">
+    <iframe id="f656" title="656px test on black" src="reserve.html" height="900"></iframe>
+  </div>
+</div>
+
+<div class="row">
+  <div class="label">656px — same module, LIGHT surround (proves it no longer depends on the parent's background)</div>
+  <div class="frame-wrap on-light" data-w="656px on light" style="width:656px;">
+    <iframe id="f656light" title="656px test on light" src="reserve.html" height="900"></iframe>
   </div>
 </div>
 
@@ -67,7 +78,7 @@
 // the one iframe it actually came from, since this test page embeds five.
 (function () {
   var AE_EMBED_ORIGIN = window.location.origin;
-  var ids = ["f656", "f360", "f390", "f768", "f1100"];
+  var ids = ["f656", "f656light", "f360", "f390", "f768", "f1100"];
   window.addEventListener("message", function (event) {
     if (event.origin !== AE_EMBED_ORIGIN) return;
     var data = event.data;

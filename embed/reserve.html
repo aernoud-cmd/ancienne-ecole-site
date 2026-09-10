@@ -11,33 +11,37 @@
 <link rel="stylesheet" href="../assets/style.css">
 <style>
   /* Embed-only overrides: no page chrome, just the booking module, sized
-     to sit inside an <iframe> on the existing WordPress site. Live-tested
-     by the owner in a real WordPress test page (2026-09-10): that page's
-     surrounding background is BLACK, not light as first assumed — so
-     this now keeps the main site's own dark palette
-     (assets/style.css's :root) almost unchanged instead of re-theming it
-     light, and uses a transparent background so it shows through
-     whatever exact shade of dark the real page uses. Same custom-
+     to sit inside an <iframe> on the existing WordPress site. History:
+     first version (2026-09-10) assumed a light WordPress background and
+     used a light theme — wrong, the real page is black. Second version
+     switched to a TRANSPARENT dark theme to let the real page's black
+     show through — also wrong in practice: the owner was actively
+     testing on a WordPress draft page whose background he changed between
+     tests (light, then black), so a transparent embed rendered unreadable
+     pale-on-light the moment the surrounding page wasn't black anymore.
+     This version drops the dependency on the parent page's background
+     entirely: the embed paints its OWN opaque background, using the
+     exact same dark palette as the rest of this site
+     (assets/style.css's :root, unchanged), so it always looks like a
+     correctly-styled part of this site regardless of what the WordPress
+     page around it happens to be at any given moment. Same custom-
      property NAMES as style.css, so every rule already written as
      var(--x) picks this up automatically. Real observed column width in
      WordPress: ~656px — designed and tested at that width first, not
      only checked there for overflow. */
   :root {
-    --bg: transparent;
-    --bg-panel: rgba(255,255,255,0.05);
-    --bg-panel2: rgba(255,255,255,0.10);
+    --bg: #0b0b09;
+    --bg-panel: #151310;
+    --bg-panel2: #1b1813;
     --text: #ece6d8;
     --text-dim: #a89d89;
     --gold: #c9a769;
     --gold-soft: #8a7752;
-    --line: rgba(201,167,105,0.32);
+    --line: rgba(201,167,105,0.28);
   }
-  body { padding: 24px 16px 32px; background: transparent; }
+  body { padding: 24px 16px 32px; background: var(--bg); }
   .wrap { max-width: 1080px; margin: 0 auto; padding: 0; }
   .btn-primary { width: 100%; }
-  /* A subtle edge + faint fill on the form panel now that it can sit on
-     any dark background, not only the main site's exact near-black one —
-     fully transparent with zero separation reads as unstyled/broken. */
   #ae-booking-form { box-shadow: 0 1px 3px rgba(0,0,0,0.35); border: 1px solid var(--line); }
   @media (max-width: 860px) {
     .booking-cols { flex-direction: column; }
