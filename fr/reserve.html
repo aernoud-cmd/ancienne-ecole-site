@@ -113,11 +113,11 @@
     <div class="form-grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
       <div class="field">
         <label for="checkin">Arrivée</label>
-        <input class="input" type="text" id="checkin" name="checkin" readonly style="font-family: 'Work Sans', sans-serif;">
+        <div class="input" id="checkin" role="textbox" aria-readonly="true" tabindex="-1" style="font-family: 'Work Sans', sans-serif; min-height: 1.3em; line-height: 1.3;">&nbsp;</div>
       </div>
       <div class="field">
         <label for="checkout">Départ</label>
-        <input class="input" type="text" id="checkout" name="checkout" readonly style="font-family: 'Work Sans', sans-serif;">
+        <div class="input" id="checkout" role="textbox" aria-readonly="true" tabindex="-1" style="font-family: 'Work Sans', sans-serif; min-height: 1.3em; line-height: 1.3;">&nbsp;</div>
       </div>
     </div>
 

@@ -17,6 +17,16 @@
     fr: ["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"],
     nl: ["Ma","Di","Wo","Do","Vr","Za","Zo"],
   };
+  // Full weekday names, Monday-first (index 0 = Monday), for the fully
+  // written-out guest-facing dates (task: "Aankomst: zaterdag 6 februari
+  // 2027", never "2027-02-06" or a truncated abbreviation). French keeps
+  // weekday/month names lowercase per its own typographic convention —
+  // matches MONTH_NAMES.fr above.
+  const WEEKDAY_FULL = {
+    en: ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"],
+    fr: ["lundi","mardi","mercredi","jeudi","vendredi","samedi","dimanche"],
+    nl: ["maandag","dinsdag","woensdag","donderdag","vrijdag","zaterdag","zondag"],
+  };
   const STRINGS = {
     en: {
       selectRange: "Select your check-in and check-out dates on the calendar",
@@ -51,6 +61,7 @@
       capacityExceeded: (max) => `This stay allows at most ${max.maxAdults} adults and ${max.maxChildren} children (${max.maxTotalGuests} guests total).`,
       capacityWarning: (max) => `That's more guests than this stay allows: at most ${max.maxAdults} adults, ${max.maxChildren} children, ${max.maxTotalGuests} guests in total. Please adjust the numbers above.`,
       arrivalDayNotAllowed: "Stays can't start on that day of the week. Please pick a different check-in date.",
+      saturdayTurnoverRequired: "During this period, stays must both start and end on a Saturday. Please adjust your check-in and/or check-out date.",
       availabilityErrorTitle: "Couldn't check availability",
       availabilityErrorBody: "We couldn't reliably load the calendar just now, so no dates can be selected — we'd rather show nothing than risk showing a date as free when it might not be.",
       retry: "Try again",
@@ -99,6 +110,7 @@
       capacityExceeded: (max) => `Ce séjour accepte au maximum ${max.maxAdults} adultes et ${max.maxChildren} enfants (${max.maxTotalGuests} personnes au total).`,
       capacityWarning: (max) => `C'est plus de personnes que ce séjour n'accepte : au maximum ${max.maxAdults} adultes, ${max.maxChildren} enfants, ${max.maxTotalGuests} personnes au total. Merci d'ajuster les nombres ci-dessus.`,
       arrivalDayNotAllowed: "Les séjours ne peuvent pas commencer ce jour-là. Merci de choisir une autre date d'arrivée.",
+      saturdayTurnoverRequired: "Pendant cette période, les séjours doivent commencer ET se terminer un samedi. Merci d'ajuster votre date d'arrivée et/ou de départ.",
       availabilityErrorTitle: "Impossible de vérifier les disponibilités",
       availabilityErrorBody: "Nous n'avons pas pu charger le calendrier de façon fiable — aucune date ne peut donc être sélectionnée pour l'instant : mieux vaut ne rien afficher que risquer de montrer une date comme libre alors qu'elle ne l'est peut-être pas.",
       retry: "Réessayer",
@@ -147,6 +159,7 @@
       capacityExceeded: (max) => `Dit verblijf biedt plaats aan maximaal ${max.maxAdults} volwassenen en ${max.maxChildren} kinderen (${max.maxTotalGuests} gasten totaal).`,
       capacityWarning: (max) => `Dat zijn meer gasten dan dit verblijf toestaat: maximaal ${max.maxAdults} volwassenen, ${max.maxChildren} kinderen, ${max.maxTotalGuests} gasten totaal. Pas de aantallen hierboven aan.`,
       arrivalDayNotAllowed: "Een verblijf kan niet op die dag beginnen. Kies een andere aankomstdatum.",
+      saturdayTurnoverRequired: "In deze periode moet een verblijf zowel op zaterdag beginnen als op zaterdag eindigen. Pas je aankomst- en/of vertrekdatum aan.",
       availabilityErrorTitle: "Beschikbaarheid kon niet worden gecontroleerd",
       availabilityErrorBody: "We konden de kalender niet betrouwbaar laden, dus kunnen er nu geen data geselecteerd worden — dat is veiliger dan een datum als vrij tonen terwijl dat misschien niet zo is.",
       retry: "Opnieuw proberen",
@@ -210,6 +223,23 @@
 
   function rangeIsFree(startISO, endISO) {
     return nightsInRange(startISO, endISO).every((n) => !busyNights.has(n) && !noPriceNights.has(n));
+  }
+
+  // Fully written-out, localized date for the guest-facing check-in/
+  // check-out fields — "Saturday 6 February 2027" / "samedi 6 février 2027"
+  // / "zaterdag 6 februari 2027". Deliberately no comma and an unpadded day
+  // number, matching the exact style the owner asked for. Never truncates —
+  // the check-in/check-out fields are <div>s that wrap, not fixed-width
+  // <input>s (see reserve.html), specifically so this never gets clipped on
+  // narrow screens.
+  function formatLongDate(dateISO, lg) {
+    if (!dateISO) return "";
+    const d = new Date(dateISO + "T00:00:00Z");
+    const weekday = WEEKDAY_FULL[lg][(d.getUTCDay() + 6) % 7];
+    const day = d.getUTCDate();
+    const month = MONTH_NAMES[lg][d.getUTCMonth()];
+    const year = d.getUTCFullYear();
+    return `${weekday} ${day} ${month} ${year}`;
   }
 
   function fmtMoneyCents(cents, currency) {
@@ -403,12 +433,20 @@
     const today = todayISO();
 
     let html = "";
+    // Collects the effective minimum-stay (per-date override, falling back
+    // to the site-wide default) for every non-past day actually shown in
+    // this month, so the note below can say something true about THIS
+    // view instead of a single global number that can contradict the
+    // period actually on screen (flagged bug: a generic "minimum 5 nights"
+    // note next to a month that's really a 30-night-minimum winter period).
+    const viewMinNightsValues = new Set();
     for (let i = 0; i < leadingBlanks; i++) {
       html += `<div class="day" style="color: var(--text-dim);"></div>`;
     }
     for (let d = 1; d <= daysInMonth; d++) {
       const dateISO = iso(viewYear, viewMonth, d);
       const isPast = dateISO < today;
+      if (!isPast) viewMinNightsValues.add(minNightsByDate[dateISO] ?? defaultMinNights);
       const isOwnBlocked = ownBlockedNights.has(dateISO);
       const isBusy = busyNights.has(dateISO) && !isOwnBlocked;
       const isPending = pendingNights.has(dateISO) && !busyNights.has(dateISO);
@@ -491,10 +529,16 @@
     grid.setAttribute("role", "grid");
     grid.innerHTML = html;
 
+    // checkin/checkout are <div>s (not <input>s) specifically so a long
+    // written-out date can wrap on narrow screens instead of being clipped
+    // — see reserve.html. Setting .value on a <div> is a silent no-op, so
+    // this must be .textContent. The &nbsp; keeps the field's height stable
+    // (min-height alone collapses in some browsers) when nothing is picked
+    // yet.
     const checkinInput = document.getElementById("checkin");
     const checkoutInput = document.getElementById("checkout");
-    if (checkinInput) checkinInput.value = selStart || "";
-    if (checkoutInput) checkoutInput.value = selEnd || "";
+    if (checkinInput) checkinInput.textContent = selStart ? formatLongDate(selStart, lang) : " ";
+    if (checkoutInput) checkoutInput.textContent = selEnd ? formatLongDate(selEnd, lang) : " ";
 
     const nightsEl = document.getElementById("ae-cal-nights");
     if (nightsEl) {
@@ -509,7 +553,17 @@
 
     const minStayNoteEl = document.getElementById("ae-cal-minstay-note");
     if (minStayNoteEl) {
-      minStayNoteEl.textContent = defaultMinNights > 1 ? t.minStayNote(defaultMinNights) : "";
+      // Exactly one effective minimum across every visible day this month
+      // (including the common "no override anywhere" case, where the set
+      // holds only defaultMinNights) → safe to state it. More than one
+      // value means this month itself mixes periods with different
+      // minimums (e.g. a shoulder period turning into the winter 30-night
+      // minimum) — a single generic number would be actively wrong for part
+      // of the month, so say nothing here and let each day's own tooltip/
+      // aria-label (minStaySuffix, set per-date above) carry the real
+      // figure instead.
+      const uniform = viewMinNightsValues.size === 1 ? [...viewMinNightsValues][0] : null;
+      minStayNoteEl.textContent = uniform && uniform > 1 ? t.minStayNote(uniform) : "";
     }
 
     const prevBtn = document.querySelector('[onclick="AE_BOOKING.prevMonth()"]');
@@ -651,6 +705,7 @@
     else if (data && data.code === "DATE_BLOCKED") msg = t.dateBlocked;
     else if (data && data.code === "CAPACITY_EXCEEDED") msg = t.capacityExceeded(data.details);
     else if (data && data.code === "ARRIVAL_DAY_NOT_ALLOWED") msg = t.arrivalDayNotAllowed;
+    else if (data && data.code === "SATURDAY_TURNOVER_REQUIRED") msg = t.saturdayTurnoverRequired;
     breakdown.innerHTML = `<span style="color: #d98c8c;">${msg}</span>`;
   }
 
@@ -749,6 +804,7 @@
         if (data.code === "DATE_BLOCKED") throw new Error(t.dateBlocked);
         if (data.code === "CAPACITY_EXCEEDED") throw new Error(t.capacityExceeded(data.details));
         if (data.code === "ARRIVAL_DAY_NOT_ALLOWED") throw new Error(t.arrivalDayNotAllowed);
+        if (data.code === "SATURDAY_TURNOVER_REQUIRED") throw new Error(t.saturdayTurnoverRequired);
         throw new Error(data.error || t.errorGeneric);
       }
       showSuccess(t.successTitle, t.successBody);

@@ -74,6 +74,7 @@ export function calculateQuote({ checkin, checkout, adults, children }, settings
   // A night with no price set is simply not bookable — never €0, never a
   // silent fallback to some other night's price.
   const perNight = [];
+  let needsSaturdayTurnover = false;
   for (const date of nights) {
     const rate = rates[date];
     // A night the owner has explicitly blocked (personal use, maintenance,
@@ -87,8 +88,24 @@ export function calculateQuote({ checkin, checkout, adults, children }, settings
       throw new QuoteError("RATE_MISSING", { date });
     }
     perNight.push({ date, priceCents: rate.priceCents });
+    // A minNights-of-7 rate record marks a "Saturday turnover" week (high
+    // season): checked against every night actually stayed, not just the
+    // check-in date's own rate (which only decided the *minimum length*
+    // above) — a stay that starts in a laxer period (e.g. a 5-night-minimum
+    // shoulder week) but extends into a Saturday-turnover week must not
+    // silently skip the changeover-day rule for the nights that do require
+    // it.
+    if (rate.minNights === 7) needsSaturdayTurnover = true;
   }
   const rentalSubtotalCents = perNight.reduce((sum, n) => sum + n.priceCents, 0);
+
+  if (needsSaturdayTurnover) {
+    const checkinIsSaturday = isoWeekday(checkin) === 6;
+    const checkoutIsSaturday = isoWeekday(checkout) === 6;
+    if (!checkinIsSaturday || !checkoutIsSaturday) {
+      throw new QuoteError("SATURDAY_TURNOVER_REQUIRED", { checkin, checkout });
+    }
+  }
 
   // 2. Long-stay discount, on the rental subtotal only. Month and week
   // discounts never stack — month wins when a stay qualifies for both.

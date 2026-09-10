@@ -292,3 +292,86 @@ test("changing settings afterwards does not affect a quote already computed (fro
   settings.weekDiscount.percent = 50;
   assert.equal(q.settingsSnapshot.weekDiscount.percent, 10);
 });
+
+// Saturday-turnover rule (high-season weeks with a 7-night minimum must
+// also have both the arrival AND the departure fall on a Saturday). All
+// dates below are in April 2027: 04-03 and 04-10 are Saturdays; 04-01 is a
+// Thursday. See _lib/pricing.mjs for why this is checked against every
+// night actually stayed, not only the check-in date.
+function saturdayTurnoverRates() {
+  const rates = {};
+  // A laxer shoulder period just before the turnover week: low minimum,
+  // no Saturday restriction of its own.
+  rates["2027-04-01"] = { priceCents: 10000, minNights: 2 };
+  rates["2027-04-02"] = { priceCents: 10000, minNights: 2 };
+  // The Saturday-turnover week itself: 2027-04-03 (Sat) .. 2027-04-09 (Fri),
+  // i.e. the 7 nights of a 04-03->04-10 stay.
+  for (const d of ["2027-04-03", "2027-04-04", "2027-04-05", "2027-04-06", "2027-04-07", "2027-04-08", "2027-04-09"]) {
+    rates[d] = { priceCents: 20000, minNights: 7 };
+  }
+  // A few more priced nights after the turnover week so a longer stay that
+  // overshoots 04-10 doesn't hit RATE_MISSING instead of the rule we're
+  // actually testing.
+  rates["2027-04-10"] = { priceCents: 20000, minNights: 7 };
+  rates["2027-04-11"] = { priceCents: 10000, minNights: 2 };
+  rates["2027-04-12"] = { priceCents: 10000, minNights: 2 };
+  return rates;
+}
+
+test("Saturday-turnover week: a stay that starts and ends on Saturday is accepted", () => {
+  const settings = baseSettings();
+  const rates = saturdayTurnoverRates();
+  const q = calculateQuote(
+    { checkin: "2027-04-03", checkout: "2027-04-10", adults: 2, children: 0 }, // Sat -> Sat, 7 nights
+    settings,
+    rates
+  );
+  assert.equal(q.nights, 7);
+});
+
+test("Saturday-turnover week: a stay entirely inside it that doesn't start on Saturday is rejected", () => {
+  const settings = baseSettings();
+  const rates = saturdayTurnoverRates();
+  // 2027-04-04 (Sun) -> 2027-04-13 (Tue): 9 nights, comfortably above the
+  // 7-night minimum (so this isn't just re-testing MIN_NIGHTS_NOT_MET) —
+  // fails purely because check-in isn't a Saturday.
+  const err = expectQuoteError(() =>
+    calculateQuote({ checkin: "2027-04-04", checkout: "2027-04-13", adults: 2, children: 0 }, settings, rates)
+  );
+  assert.equal(err.code, "SATURDAY_TURNOVER_REQUIRED");
+});
+
+test("Saturday-turnover week: starting on Saturday but leaving on a non-Saturday is rejected, even on a longer stay that satisfies the raw night count", () => {
+  const settings = baseSettings();
+  const rates = saturdayTurnoverRates();
+  // 2027-04-03 (Sat) -> 2027-04-13 (Tue): 10 nights, well above the 7-night
+  // minimum, so this only fails because the departure isn't a Saturday.
+  const err = expectQuoteError(() =>
+    calculateQuote({ checkin: "2027-04-03", checkout: "2027-04-13", adults: 2, children: 0 }, settings, rates)
+  );
+  assert.equal(err.code, "SATURDAY_TURNOVER_REQUIRED");
+});
+
+test("Saturday-turnover bypass is closed: an arrival in a laxer period that stays through part of a Saturday-turnover week still requires the Saturday rule", () => {
+  const settings = baseSettings();
+  const rates = saturdayTurnoverRates();
+  // Arrives Thursday 04-01 in the low-minimum shoulder period (arrival's own
+  // minNights is 2, satisfied by this 4-night stay), but the stay extends
+  // into 04-03 which belongs to the Saturday-turnover week — the arrival
+  // weekday rule must still apply, not be skipped just because check-in
+  // itself sits in a laxer period.
+  const err = expectQuoteError(() =>
+    calculateQuote({ checkin: "2027-04-01", checkout: "2027-04-05", adults: 2, children: 0 }, settings, rates)
+  );
+  assert.equal(err.code, "SATURDAY_TURNOVER_REQUIRED");
+});
+
+test("Saturday-turnover rule doesn't fire at all for a stay that never touches a 7-night-minimum night", () => {
+  const settings = baseSettings();
+  const rates = saturdayTurnoverRates();
+  // Entirely within the laxer shoulder period, Thursday -> Saturday — would
+  // fail the Saturday rule if it wrongly applied here, but it shouldn't
+  // apply at all since no night in this stay has minNights === 7.
+  const q = calculateQuote({ checkin: "2027-04-01", checkout: "2027-04-03", adults: 2, children: 0 }, settings, rates);
+  assert.equal(q.nights, 2);
+});
