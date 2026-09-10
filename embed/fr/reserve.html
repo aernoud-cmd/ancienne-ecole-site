@@ -21,23 +21,28 @@
      pale-on-light the moment the surrounding page wasn't black anymore.
      This version drops the dependency on the parent page's background
      entirely: the embed paints its OWN opaque background, using the
-     exact same dark palette as the rest of this site
-     (assets/style.css's :root, unchanged), so it always looks like a
-     correctly-styled part of this site regardless of what the WordPress
-     page around it happens to be at any given moment. Same custom-
-     property NAMES as style.css, so every rule already written as
-     var(--x) picks this up automatically. Real observed column width in
-     WordPress: ~656px — designed and tested at that width first, not
-     only checked there for overflow. */
+     same dark palette as the rest of this site (assets/style.css's
+     :root), so it always looks like a correctly-styled part of this site
+     regardless of what the WordPress page around it happens to be at any
+     given moment. Same custom-property NAMES as style.css, so every rule
+     already written as var(--x) picks this up automatically. Real
+     observed column width in WordPress: ~656px — designed and tested at
+     that width first, not only checked there for overflow. Fourth pass:
+     the day tiles had no visible frame (no fill, a near-invisible
+     border) and the text read as dim/grey on the real site, so --text/
+     --text-dim are brighter here and a --line-strong border+fill was
+     added specifically for the calendar tiles (see .day / booking.js) —
+     kept in sync with assets/style.css's :root, not re-diverged. */
   :root {
     --bg: #0b0b09;
     --bg-panel: #151310;
     --bg-panel2: #1b1813;
-    --text: #ece6d8;
-    --text-dim: #a89d89;
+    --text: #f5f0e2;
+    --text-dim: #c2b79f;
     --gold: #c9a769;
     --gold-soft: #8a7752;
     --line: rgba(201,167,105,0.28);
+    --line-strong: rgba(201,167,105,0.55);
   }
   body { padding: 24px 16px 32px; background: var(--bg); }
   .wrap { max-width: 1080px; margin: 0 auto; padding: 0; }

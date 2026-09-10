@@ -2,11 +2,16 @@
   --bg: #0b0b09;
   --bg-panel: #151310;
   --bg-panel2: #1b1813;
-  --text: #ece6d8;
-  --text-dim: #a89d89;
+  --text: #f5f0e2;
+  --text-dim: #c2b79f;
   --gold: #c9a769;
   --gold-soft: #8a7752;
   --line: rgba(201,167,105,0.22);
+  /* Stronger border, used only where a clearly visible frame matters most
+     — the calendar day tiles (see .day / booking.js). --line itself is
+     left as-is everywhere else (buttons, dividers, inputs) so this fix
+     doesn't ripple across parts of the site nobody flagged as unclear. */
+  --line-strong: rgba(201,167,105,0.55);
 }
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }

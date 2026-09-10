@@ -426,7 +426,7 @@
       const isCandidateCheckout = !isPast && selStart && !selEnd && dateISO > selStart;
       const validAsCheckout = isCandidateCheckout && rangeIsFree(selStart, dateISO);
 
-      let style = "border:1px solid var(--line);cursor:pointer;";
+      let style = "border:1px solid var(--line-strong);background:var(--bg-panel);cursor:pointer;";
       let statusWord = t.dayAvailable;
       if (isPast) {
         style = "color: var(--text-dim); opacity: 0.35;";
@@ -451,7 +451,7 @@
         style = "background: var(--bg-panel2); color: var(--text-dim); border: 1px dashed var(--gold-soft);";
         statusWord = t.dayRequested;
       } else if (isNoPrice) {
-        style = "color: var(--text-dim); border: 1px dashed var(--line); opacity: 0.55;";
+        style = "color: var(--text-dim); border: 1px dashed var(--line-strong); opacity: 0.55;";
         statusWord = t.dayNoPrice;
         if (validAsCheckout) style += "cursor:pointer;";
       } else if (inSelectedRange) {
