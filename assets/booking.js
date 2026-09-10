@@ -58,6 +58,7 @@
       prevMonth: "Previous month",
       nextMonth: "Next month",
       dayBooked: "booked",
+      dayOwnBlocked: "not available (owner's own use)",
       dayRequested: "requested, awaiting approval",
       dayAvailable: "available",
       dayPast: "past date",
@@ -105,6 +106,7 @@
       prevMonth: "Mois précédent",
       nextMonth: "Mois suivant",
       dayBooked: "réservé",
+      dayOwnBlocked: "indisponible (usage personnel du propriétaire)",
       dayRequested: "en demande, en attente d'approbation",
       dayAvailable: "disponible",
       dayPast: "date passée",
@@ -152,6 +154,7 @@
       prevMonth: "Vorige maand",
       nextMonth: "Volgende maand",
       dayBooked: "geboekt",
+      dayOwnBlocked: "niet beschikbaar (eigen gebruik)",
       dayRequested: "aangevraagd, in afwachting van goedkeuring",
       dayAvailable: "beschikbaar",
       dayPast: "verstreken datum",
@@ -165,6 +168,12 @@
   let busyNights = new Set();
   let pendingNights = new Set();
   let noPriceNights = new Set();
+  // Subset of busyNights that's busy specifically because the owner blocked
+  // it themselves (personal use/maintenance) rather than an Airbnb sync or a
+  // direct booking — kept separate purely so the calendar can show a
+  // distinct state for it (see availability.mjs: ownBlockedNights is a
+  // subset of busyNights, never additional dates).
+  let ownBlockedNights = new Set();
   let minNightsByDate = {};
   let defaultMinNights = 1;
   let capacity = { maxAdults: 8, maxChildren: 2, maxTotalGuests: 10 };
@@ -400,7 +409,8 @@
     for (let d = 1; d <= daysInMonth; d++) {
       const dateISO = iso(viewYear, viewMonth, d);
       const isPast = dateISO < today;
-      const isBusy = busyNights.has(dateISO);
+      const isOwnBlocked = ownBlockedNights.has(dateISO);
+      const isBusy = busyNights.has(dateISO) && !isOwnBlocked;
       const isPending = pendingNights.has(dateISO) && !busyNights.has(dateISO);
       const isNoPrice = noPriceNights.has(dateISO) && !isBusy && !isPending;
       const inSelectedRange =
@@ -423,8 +433,16 @@
         statusWord = t.dayPast;
       } else if (isRangeEdge) {
         style = "background: var(--gold); color: #1a1408; font-weight: 600; cursor:pointer;";
-        if (isBusy) statusWord = t.dayBooked;
+        if (isOwnBlocked) statusWord = t.dayOwnBlocked;
+        else if (isBusy) statusWord = t.dayBooked;
         else if (isNoPrice) statusWord = t.dayNoPrice;
+      } else if (isOwnBlocked) {
+        // Deliberately a distinct rust/rose tone (not the neutral grey used
+        // for "booked") — the same color the admin calendar's own "Eigen
+        // blokkade" legend dot uses, so the two views read consistently.
+        style = "background: rgba(217,140,140,0.14); color: var(--text-dim); border: 1px solid rgba(217,140,140,0.45); text-decoration: line-through;";
+        statusWord = t.dayOwnBlocked;
+        if (validAsCheckout) style += "cursor:pointer;";
       } else if (isBusy) {
         style = "background: var(--bg-panel2); color: var(--text-dim); text-decoration: line-through;";
         statusWord = t.dayBooked;
@@ -546,6 +564,10 @@
       busyNights = new Set(data.busyNights);
       pendingNights = new Set(data.pendingNights);
       noPriceNights = new Set(data.noPriceNights);
+      // Not required in shapeOk above — an older/rolling deploy without this
+      // field must still show a safe, correct (if slightly less detailed)
+      // calendar rather than falling back to the fail-closed error banner.
+      ownBlockedNights = new Set(Array.isArray(data.ownBlockedNights) ? data.ownBlockedNights : []);
       minNightsByDate = data.minNightsByDate || {};
       if (data.defaultMinNights) defaultMinNights = data.defaultMinNights;
       capacity = data.capacity;

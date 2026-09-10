@@ -15,7 +15,7 @@ const HORIZON_DAYS = 545; // ~18 months
 
 export default async () => {
   const settings = await getPricingSettings();
-  const [{ busyNights, pendingNights }, rates] = await Promise.all([
+  const [{ busyNights, pendingNights, ownBlockedNights }, rates] = await Promise.all([
     computeAvailability(settings),
     getAllRates(),
   ]);
@@ -46,6 +46,12 @@ export default async () => {
     JSON.stringify({
       busyNights: Array.from(busyNights).sort(),
       pendingNights: Array.from(pendingNights).sort(),
+      // Always a subset of busyNights, never additional dates — surfaced
+      // separately purely so the guest/embed calendar can show "not
+      // available (owner's own use)" as its own distinct state instead of
+      // lumping it in with an Airbnb sync or another guest's booking (see
+      // the new vervolgopdracht spec, section 2's state list).
+      ownBlockedNights: Array.from(ownBlockedNights).sort(),
       noPriceNights,
       minNightsByDate,
       capacity: settings.capacity,

@@ -11,10 +11,29 @@
 <link rel="stylesheet" href="../../assets/style.css">
 <style>
   /* Embed-only overrides: no page chrome, just the booking module, sized to
-     sit inside an <iframe> on another site (e.g. the existing WordPress site). */
-  body { padding: 28px 20px 36px; }
+     sit inside an <iframe> on another site (the existing WordPress site).
+     This block also completely re-themes the module from the main site's
+     dark palette (assets/style.css's :root) to a light/transparent one —
+     the WordPress site is not a dark standalone page, so the embed
+     shouldn't look like one either. Same custom-property NAMES as
+     style.css, so every rule already written as var(--x) picks this up
+     automatically; nothing else in style.css needed to change. */
+  :root {
+    --bg: transparent;
+    --bg-panel: #ffffff;
+    --bg-panel2: #f1ece1;
+    --text: #2b2416;
+    --text-dim: #7c7360;
+    --gold: #b08a3e;
+    --gold-soft: #8a6a2f;
+    --line: rgba(122,94,42,0.28);
+  }
+  body { padding: 28px 20px 36px; background: transparent; }
   .wrap { max-width: 1080px; margin: 0 auto; padding: 0; }
   .btn-primary { width: 100%; }
+  /* The form panel needs its own visible edge now that it can sit on any
+     background, not the dark site's near-black one. */
+  #ae-booking-form { box-shadow: 0 1px 3px rgba(60,45,20,0.08); }
   @media (max-width: 860px) {
     .booking-cols { flex-direction: column; }
   }
@@ -54,6 +73,7 @@
     <div style="display: flex; gap: 24px; margin-top: 28px; flex-wrap: wrap;">
       <div style="display:flex; align-items:center; gap: 8px;"><span style="width:13px;height:13px;background:var(--gold);border-radius:2px;display:inline-block;"></span><span style="font-size: 13px; color: var(--text-dim);">Vos dates sélectionnées</span></div>
       <div style="display:flex; align-items:center; gap: 8px;"><span style="width:13px;height:13px;background:var(--bg-panel2);border-radius:2px;display:inline-block;"></span><span style="font-size: 13px; color: var(--text-dim);">Réservé (selon notre calendrier Airbnb)</span></div>
+      <div style="display:flex; align-items:center; gap: 8px;"><span style="width:13px;height:13px;background:rgba(217,140,140,0.35);border:1px solid rgba(217,140,140,0.6);border-radius:2px;display:inline-block;"></span><span style="font-size: 13px; color: var(--text-dim);">Indisponible (usage personnel du propriétaire)</span></div>
       <div style="display:flex; align-items:center; gap: 8px;"><span style="width:13px;height:13px;border:1px dashed var(--gold-soft);border-radius:2px;display:inline-block;"></span><span style="font-size: 13px; color: var(--text-dim);">Demandé (en attente de confirmation)</span></div>
       <div style="display:flex; align-items:center; gap: 8px;"><span style="width:13px;height:13px;border:1px solid var(--line);border-radius:2px;display:inline-block;"></span><span style="font-size: 13px; color: var(--text-dim);">Disponible</span></div>
       <div style="display:flex; align-items:center; gap: 8px;"><span style="width:13px;height:13px;border:1px dashed var(--line);border-radius:2px;display:inline-block;opacity:0.7;"></span><span style="font-size: 13px; color: var(--text-dim);">Pas encore ouvert à la réservation (prix non défini)</span></div>
@@ -132,7 +152,16 @@
   (function () {
     function reportHeight() {
       var h = document.documentElement.scrollHeight;
-      window.parent.postMessage({ aeSource: "ae-booking-embed", aeAncienneEcoleEmbedHeight: h }, "*");
+      // Prefer the actual parent origin (from document.referrer) over a
+      // wildcard target — this message carries no sensitive data, but there
+      // is no reason to broadcast it to every origin when the real one is
+      // knowable. Falls back to "*" only if the browser doesn't expose a
+      // referrer (e.g. a very locked-down parent page).
+      var targetOrigin = "*";
+      try {
+        if (document.referrer) targetOrigin = new URL(document.referrer).origin;
+      } catch (e) {}
+      window.parent.postMessage({ aeSource: "ae-booking-embed", aeAncienneEcoleEmbedHeight: h }, targetOrigin);
     }
     new MutationObserver(reportHeight).observe(document.body, { childList: true, subtree: true, attributes: true });
     window.addEventListener("load", reportHeight);

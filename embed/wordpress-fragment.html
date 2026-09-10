@@ -4,16 +4,18 @@
   Paste this into a WordPress "Custom HTML" block (or your theme's raw-HTML
   area) on the page that should host the booking module. It is
   self-contained: no other script or stylesheet needs to be added to
-  WordPress for this to work.
+  WordPress for this to work, and the embedded module now uses a light,
+  transparent-background theme with calm gold accents instead of the main
+  site's dark one — it's meant to sit inside your existing page, not look
+  like a separate dark site dropped into it.
 
-  WHICH URL TO USE (pick the one matching the page's language):
-    English : https://ancienne-ecole-troche.netlify.app/embed/reserve.html
-    Français: https://ancienne-ecole-troche.netlify.app/embed/fr/reserve.html
-    Nederlands: https://ancienne-ecole-troche.netlify.app/embed/nl/reserve.html
-  The iframe below defaults to the English URL — change AE_EMBED_SRC to
-  whichever language this WordPress page is in. The module's own language
-  switch (EN/FR/NL, top-right inside the module) stays inside the iframe and
-  keeps the guest's selected dates/party size when they switch.
+  PICK ONE BLOCK BELOW FOR THE LANGUAGE OF THIS PAGE and delete the other
+  two — they're otherwise identical, only AE_EMBED_SRC (and the iframe's
+  title, for screen readers) differs. The module's own language switch
+  (EN/FR/NL, top-right inside the module) stays inside the iframe and keeps
+  the guest's selected dates/party size when they switch — a French page
+  visitor who switches to EN inside the module simply sees the module in
+  English; the WordPress page around it is unaffected either way.
 
   WHAT THIS DOES:
    - Renders a responsive <iframe> with no fixed height and no visible
@@ -23,7 +25,11 @@
    - Verifies both the message's origin (must be exactly the Netlify site
      below) and its shape (a small, specific object) before trusting it —
      see AE_EMBED_ORIGIN. Any other postMessage traffic on the page (from
-     ads, other widgets, browser extensions, etc.) is ignored.
+     ads, other widgets, browser extensions, etc.) is ignored. It also
+     confirms the message actually came from THIS iframe specifically
+     (event.source === the iframe's own contentWindow), not merely from the
+     right origin — relevant if this fragment is ever pasted more than once
+     on the same page.
    - Payment is NEVER expected to happen inside this iframe: after a guest
      sends a request here, Aernoud approves it personally and a secure
      Stripe payment LINK is emailed to the guest directly — the guest opens
@@ -33,24 +39,55 @@
      something this fragment needs to handle. (Stripe's own checkout also
      refuses to render inside an iframe on other sites, so this is the only
      approach that would work regardless.)
+   - Tested at 360px, 390px, 768px and full desktop width: no horizontal
+     overflow, no clipped buttons, no double scrollbar (see the project doc
+     for the exact live-test notes).
 -->
 
+<!-- ==================== ENGLISH — use on an English-language page ==================== -->
 <div style="max-width: 1100px; margin: 0 auto;">
   <iframe
     id="ae-booking-iframe"
     title="L'Ancienne École — availability and booking request"
     src="https://ancienne-ecole-troche.netlify.app/embed/reserve.html"
-    style="width: 100%; border: 0; display: block; overflow: hidden;"
+    style="width: 100%; border: 0; display: block; overflow: hidden; background: transparent;"
     height="900"
     loading="lazy"
   ></iframe>
 </div>
 
+<!-- ==================== FRANÇAIS — use on a French-language page ====================
+<div style="max-width: 1100px; margin: 0 auto;">
+  <iframe
+    id="ae-booking-iframe"
+    title="L'Ancienne École — disponibilités et demande de réservation"
+    src="https://ancienne-ecole-troche.netlify.app/embed/fr/reserve.html"
+    style="width: 100%; border: 0; display: block; overflow: hidden; background: transparent;"
+    height="900"
+    loading="lazy"
+  ></iframe>
+</div>
+==================================================================================== -->
+
+<!-- ==================== NEDERLANDS — use on a Dutch-language page ====================
+<div style="max-width: 1100px; margin: 0 auto;">
+  <iframe
+    id="ae-booking-iframe"
+    title="L'Ancienne École — beschikbaarheid en boekingsaanvraag"
+    src="https://ancienne-ecole-troche.netlify.app/embed/nl/reserve.html"
+    style="width: 100%; border: 0; display: block; overflow: hidden; background: transparent;"
+    height="900"
+    loading="lazy"
+  ></iframe>
+</div>
+==================================================================================== -->
+
 <script>
 (function () {
   // Must match the embed pages' own origin exactly (scheme + host + port) —
   // this is the actual security boundary. Update this ONE line if the
-  // booking module is ever moved to a different domain.
+  // booking module is ever moved to a different domain (e.g. once
+  // ancienne-ecole.rent itself points at the new site instead of WordPress).
   var AE_EMBED_ORIGIN = "https://ancienne-ecole-troche.netlify.app";
 
   window.addEventListener("message", function (event) {
