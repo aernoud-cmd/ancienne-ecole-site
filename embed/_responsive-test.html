@@ -8,24 +8,30 @@
 <style>
   /*
     Internal QA page only — NOT part of the guest-facing site, not linked
-    from anywhere, and safe to delete at any time. It reproduces the real
+    from anywhere, and safe to delete at any time. Reproduces the real
     WordPress embedding scenario (a cross-origin <iframe> at a FIXED pixel
-    width) at the four widths the vervolgopdracht spec asks to check:
-    360px and 390px (mobile), 768px (tablet), and a desktop width. Because
-    each iframe below sits in a container with an explicit width, the
-    module's own `@media (max-width: 860px)` rule reacts to that width —
-    exactly as it will inside a real WordPress page — regardless of how
-    wide the actual browser window is.
+    width, on a BLACK surrounding page — confirmed by the owner testing a
+    real WordPress draft page on 2026-09-10, which is why this harness's
+    own body is black too, not the light grey used before that finding).
+    656px is the real observed WordPress column width and comes first;
+    360/390/768/1100 stay below as regression checks at other widths.
   */
-  body { font-family: -apple-system, "Work Sans", sans-serif; background: #ccc; margin: 0; padding: 24px; }
+  body { font-family: -apple-system, "Work Sans", sans-serif; background: #000; margin: 0; padding: 24px; }
   .row { margin-bottom: 48px; }
-  .label { font: 600 13px/1.4 monospace; margin-bottom: 8px; background: #222; color: #fff; display: inline-block; padding: 4px 10px; border-radius: 3px; }
-  .frame-wrap { border: 2px dashed #c0392b; box-sizing: content-box; background: #fff; position: relative; }
+  .label { font: 600 13px/1.4 monospace; margin-bottom: 8px; background: #c9a769; color: #1a1408; display: inline-block; padding: 4px 10px; border-radius: 3px; }
+  .frame-wrap { border: 2px dashed #c0392b; box-sizing: content-box; background: #000; position: relative; }
   .frame-wrap::after { content: attr(data-w); position: absolute; top: -1px; right: -2px; background: #c0392b; color: #fff; font: 11px monospace; padding: 2px 6px; transform: translateY(-100%); }
   iframe { width: 100%; border: 0; display: block; overflow: hidden; background: transparent; }
 </style>
 </head>
 <body>
+
+<div class="row">
+  <div class="label">656px — real WordPress column width, black page</div>
+  <div class="frame-wrap" data-w="656px" style="width:656px;">
+    <iframe id="f656" title="656px test" src="reserve.html" height="900"></iframe>
+  </div>
+</div>
 
 <div class="row">
   <div class="label">360px — mobile (small)</div>
@@ -58,10 +64,10 @@
 <script>
 // Same listener pattern as the real WordPress fragment (see
 // embed/wordpress-fragment.html), extended to route each resize message to
-// the one iframe it actually came from, since this test page embeds four.
+// the one iframe it actually came from, since this test page embeds five.
 (function () {
   var AE_EMBED_ORIGIN = window.location.origin;
-  var ids = ["f360", "f390", "f768", "f1100"];
+  var ids = ["f656", "f360", "f390", "f768", "f1100"];
   window.addEventListener("message", function (event) {
     if (event.origin !== AE_EMBED_ORIGIN) return;
     var data = event.data;

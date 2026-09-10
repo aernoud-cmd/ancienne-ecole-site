@@ -10,30 +10,35 @@
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../../assets/style.css">
 <style>
-  /* Embed-only overrides: no page chrome, just the booking module, sized to
-     sit inside an <iframe> on another site (the existing WordPress site).
-     This block also completely re-themes the module from the main site's
-     dark palette (assets/style.css's :root) to a light/transparent one —
-     the WordPress site is not a dark standalone page, so the embed
-     shouldn't look like one either. Same custom-property NAMES as
-     style.css, so every rule already written as var(--x) picks this up
-     automatically; nothing else in style.css needed to change. */
+  /* Embed-only overrides: no page chrome, just the booking module, sized
+     to sit inside an <iframe> on the existing WordPress site. Live-tested
+     by the owner in a real WordPress test page (2026-09-10): that page's
+     surrounding background is BLACK, not light as first assumed — so
+     this now keeps the main site's own dark palette
+     (assets/style.css's :root) almost unchanged instead of re-theming it
+     light, and uses a transparent background so it shows through
+     whatever exact shade of dark the real page uses. Same custom-
+     property NAMES as style.css, so every rule already written as
+     var(--x) picks this up automatically. Real observed column width in
+     WordPress: ~656px — designed and tested at that width first, not
+     only checked there for overflow. */
   :root {
     --bg: transparent;
-    --bg-panel: #ffffff;
-    --bg-panel2: #f1ece1;
-    --text: #2b2416;
-    --text-dim: #7c7360;
-    --gold: #b08a3e;
-    --gold-soft: #8a6a2f;
-    --line: rgba(122,94,42,0.28);
+    --bg-panel: rgba(255,255,255,0.05);
+    --bg-panel2: rgba(255,255,255,0.10);
+    --text: #ece6d8;
+    --text-dim: #a89d89;
+    --gold: #c9a769;
+    --gold-soft: #8a7752;
+    --line: rgba(201,167,105,0.32);
   }
-  body { padding: 28px 20px 36px; background: transparent; }
+  body { padding: 24px 16px 32px; background: transparent; }
   .wrap { max-width: 1080px; margin: 0 auto; padding: 0; }
   .btn-primary { width: 100%; }
-  /* The form panel needs its own visible edge now that it can sit on any
-     background, not the dark site's near-black one. */
-  #ae-booking-form { box-shadow: 0 1px 3px rgba(60,45,20,0.08); }
+  /* A subtle edge + faint fill on the form panel now that it can sit on
+     any dark background, not only the main site's exact near-black one —
+     fully transparent with zero separation reads as unstyled/broken. */
+  #ae-booking-form { box-shadow: 0 1px 3px rgba(0,0,0,0.35); border: 1px solid var(--line); }
   @media (max-width: 860px) {
     .booking-cols { flex-direction: column; }
   }
