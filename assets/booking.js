@@ -90,6 +90,13 @@
       checkoutRangeBlocked: "not a valid check-out — a night in between is already booked or held",
       minStaySuffix: (n) => `, minimum stay if arriving here: ${n} nights`,
       minStayNote: (n) => `Minimum stay: ${n} nights (some periods require longer — the calendar and price will tell you).`,
+      // Shown right next to the calendar as soon as an arrival is picked
+      // but no check-out yet — the earliest date isValidCheckout() would
+      // actually accept, so this can never promise a date the calendar
+      // itself disables (see findEarliestValidCheckout()).
+      minStayFromDate: (n, dateStr) => `Minimum stay: ${n} nights — earliest check-out ${dateStr}.`,
+      minStayFromDateUnknown: (n) => `Minimum stay: ${n} nights — no valid check-out found nearby; please try a different arrival date.`,
+      clearSelectionLink: "Clear selection",
       tilePriceSuffix: (amount) => `, ${amount} per night`,
       tileCaption: "Every available day shows its nightly price in euros (€) and minimum stay (e.g. “5n” = 5 nights minimum).",
       termsHeading: "Booking terms, cancellation & deposit",
@@ -160,6 +167,9 @@
       checkoutRangeBlocked: "départ non valable — une nuit entre les deux est déjà réservée ou retenue",
       minStaySuffix: (n) => `, séjour minimum en arrivant ici : ${n} nuits`,
       minStayNote: (n) => `Séjour minimum : ${n} nuits (certaines périodes exigent plus — le calendrier et le prix vous le préciseront).`,
+      minStayFromDate: (n, dateStr) => `Séjour minimum : ${n} nuits — départ possible à partir du ${dateStr}.`,
+      minStayFromDateUnknown: (n) => `Séjour minimum : ${n} nuits — aucun départ valable trouvé à proximité ; merci d'essayer une autre date d'arrivée.`,
+      clearSelectionLink: "Effacer la sélection",
       tilePriceSuffix: (amount) => `, ${amount} par nuit`,
       tileCaption: "Chaque jour disponible indique son prix par nuit en euros (€) et le séjour minimum (par ex. « 5n » = minimum 5 nuits).",
       termsHeading: "Conditions de réservation, annulation et caution",
@@ -230,6 +240,9 @@
       checkoutRangeBlocked: "geen geldige vertrekdatum — een nacht daartussen is al geboekt of vastgehouden",
       minStaySuffix: (n) => `, minimumverblijf bij aankomst hier: ${n} nachten`,
       minStayNote: (n) => `Minimumverblijf: ${n} nachten (voor sommige periodes geldt een langer minimum — de kalender en de prijs geven dit aan).`,
+      minStayFromDate: (n, dateStr) => `Minimaal ${n} nachten — vertrek mogelijk vanaf ${dateStr}.`,
+      minStayFromDateUnknown: (n) => `Minimaal ${n} nachten — geen geldige vertrekdatum gevonden in de buurt; probeer een andere aankomstdatum.`,
+      clearSelectionLink: "Selectie wissen",
       tilePriceSuffix: (amount) => `, ${amount} per nacht`,
       tileCaption: "Elke beschikbare dag toont de prijs per nacht in euro's (€) en het minimumverblijf (bijv. “5n” = minimum 5 nachten).",
       termsHeading: "Boekingsvoorwaarden, annulering & borg",
@@ -363,6 +376,25 @@
     return meetsMinNights(startISO, endISO);
   }
 
+  // The date shown next to the calendar once an arrival is picked ("Minimum
+  // stay: 5 nights — earliest check-out 12 May.") — the actual EARLIEST
+  // date isValidCheckout() would accept for this arrival, not merely
+  // startISO + minNights: if that arithmetic date happens to fall on an
+  // already-busy night, or (in a high-season period) doesn't land on a
+  // Saturday, the true earliest valid check-out is later still, and this
+  // walks forward until it finds the first date that's actually offered as
+  // clickable — so the note never promises a date the calendar itself would
+  // reject. Capped at a year out so a stay with no valid check-out anywhere
+  // nearby (e.g. hemmed in by bookings) doesn't loop indefinitely; the
+  // caller simply shows no date in that case.
+  function findEarliestValidCheckout(startISO, maxDaysAhead = 366) {
+    for (let i = 1; i <= maxDaysAhead; i++) {
+      const candidate = addDaysISO(startISO, i);
+      if (isValidCheckout(startISO, candidate)) return candidate;
+    }
+    return null;
+  }
+
   // True when ANY night actually stayed between startISO (inclusive) and
   // endISO (exclusive — checkout night itself is never "stayed", see
   // nightsInRange) is flagged saturdayTurnover — mirrors calculateQuote()'s
@@ -389,6 +421,18 @@
     const month = MONTH_NAMES[lg][d.getUTCMonth()];
     const year = d.getUTCFullYear();
     return `${weekday} ${day} ${month} ${year}`;
+  }
+
+  // Short "12 mei" / "12 May" / "12 mai" form (no weekday, no year) — used
+  // only for the compact "earliest check-out" hint next to the calendar
+  // (see findEarliestValidCheckout()/renderCalendar() below), where a full
+  // written-out date would be needlessly long for a single inline note.
+  function formatShortDate(dateISO, lg) {
+    if (!dateISO) return "";
+    const d = new Date(dateISO + "T00:00:00Z");
+    const day = d.getUTCDate();
+    const month = MONTH_NAMES[lg][d.getUTCMonth()];
+    return `${day} ${month}`;
   }
 
   function fmtMoneyCents(cents, currency) {
@@ -770,7 +814,14 @@
         // these dates fell through to the ordinary "available" look below,
         // which is exactly the reported bug: after picking an arrival,
         // almost every later day still looked identically bookable.
-        style = "color: var(--text-dim); border: 1px dashed var(--line-strong); opacity: 0.5; text-decoration: line-through;";
+        // Explicit background (the same darker panel tone busy/owner-
+        // blocked nights use, NOT --bg-available's lighter gold-brown) and
+        // cursor: not-allowed were added after a live report that this
+        // treatment still read as "looks clickable" at a glance — opacity
+        // and line-through alone were too subtle against this dark theme's
+        // default tile look. This must never again visually match the
+        // plain "available" style above.
+        style = "background: var(--bg-panel); color: var(--text-dim); border: 1px dashed var(--line-strong); opacity: 0.55; text-decoration: line-through; cursor: not-allowed;";
         statusWord = t.dayUnavailable;
       } else if (inSelectedRange) {
         style = "background: var(--gold); color: #1a1408; font-weight: 600; cursor:pointer;";
@@ -876,17 +927,45 @@
 
     const minStayNoteEl = document.getElementById("ae-cal-minstay-note");
     if (minStayNoteEl) {
-      // Exactly one effective minimum across every visible day this month
-      // (including the common "no override anywhere" case, where the set
-      // holds only defaultMinNights) → safe to state it. More than one
-      // value means this month itself mixes periods with different
-      // minimums (e.g. a shoulder period turning into the winter 30-night
-      // minimum) — a single generic number would be actively wrong for part
-      // of the month, so say nothing here and let each day's own tooltip/
-      // aria-label (minStaySuffix, set per-date above) carry the real
-      // figure instead.
-      const uniform = viewMinNightsValues.size === 1 ? [...viewMinNightsValues][0] : null;
-      minStayNoteEl.textContent = uniform && uniform > 1 ? t.minStayNote(uniform) : "";
+      // Once an arrival is picked (whether or not a check-out is chosen
+      // yet), this note becomes selection-specific — it's the concrete
+      // answer to "why are the next few days dark, and when CAN I check
+      // out" — rather than the generic month-level figure, which would
+      // otherwise sit right next to disabled tiles without explaining them.
+      // The color always resets to the normal (non-error) tone here: any
+      // one-off error text a submit attempt wrote into this same element
+      // (see submitBooking()/pickDate() below) is only ever meant to last
+      // until the next render, exactly like #ae-booking-status's own
+      // isError styling.
+      minStayNoteEl.setAttribute("aria-live", "polite");
+      minStayNoteEl.style.color = "var(--text-dim)";
+      minStayNoteEl.innerHTML = "";
+      if (selStart) {
+        const arrivalMinNights = minNightsByDate[selStart] ?? defaultMinNights;
+        const noteText = selEnd
+          ? "" // a complete selection already shows its own night count/price — no extra note needed
+          : (() => {
+              const earliest = findEarliestValidCheckout(selStart);
+              return earliest
+                ? t.minStayFromDate(arrivalMinNights, formatShortDate(earliest, lang))
+                : t.minStayFromDateUnknown(arrivalMinNights);
+            })();
+        const clearLink = `<a href="#" onclick="AE_BOOKING.clearSelection();return false;" style="color: var(--gold); text-decoration: underline; margin-left: 8px; white-space: nowrap;">${t.clearSelectionLink}</a>`;
+        minStayNoteEl.innerHTML = `<span>${noteText}</span>${clearLink}`;
+      } else {
+        // No selection at all yet — back to the generic month-level figure,
+        // exactly as before. Exactly one effective minimum across every
+        // visible day this month (including the common "no override
+        // anywhere" case, where the set holds only defaultMinNights) → safe
+        // to state it. More than one value means this month itself mixes
+        // periods with different minimums (e.g. a shoulder period turning
+        // into the winter 30-night minimum) — a single generic number would
+        // be actively wrong for part of the month, so say nothing here and
+        // let each day's own tooltip/aria-label (minStaySuffix, set
+        // per-date above) carry the real figure instead.
+        const uniform = viewMinNightsValues.size === 1 ? [...viewMinNightsValues][0] : null;
+        minStayNoteEl.textContent = uniform && uniform > 1 ? t.minStayNote(uniform) : "";
+      }
     }
 
     const prevBtn = document.querySelector('[onclick="AE_BOOKING.prevMonth()"]');
@@ -897,26 +976,57 @@
     refreshQuote();
   }
 
+  // Writes into the same #ae-cal-minstay-note element renderCalendar() uses
+  // for its own selection-state note, right NEXT TO the calendar — never a
+  // browser alert() (jarring, and blocks further interaction) and never
+  // only #ae-booking-status at the bottom of the form, below the personal-
+  // data fields, which is where a date-selection problem used to surface.
+  // Called after renderCalendar() so it overrides whatever note that render
+  // pass just set.
+  function showCalendarNote(msg, isError) {
+    const el = document.getElementById("ae-cal-minstay-note");
+    if (!el) return;
+    el.textContent = msg;
+    el.style.color = isError ? "#d98c8c" : "var(--text-dim)";
+  }
+
   function pickDate(dateISO) {
     if (!availabilityOk) return; // defense in depth — the grid shouldn't render clickable cells at all in this state
     if (!selStart || (selStart && selEnd) || dateISO <= selStart) {
       selStart = dateISO;
       selEnd = null;
+      renderCalendar();
     } else {
       // Defense in depth: mirrors exactly what renderCalendar() already
       // required for this date's tile to be clickable at all (see
       // isValidCheckout() above — range-free, Saturday-turnover, AND
       // minimum-stay, not just range-free) — so even a stale render or a
       // race between two rapid clicks can never complete a selection the
-      // calendar didn't actually offer as valid.
+      // calendar didn't actually offer as valid. In normal use this
+      // "else" branch is unreachable (an invalid date never renders as
+      // clickable in the first place — see isCandidateCheckout/
+      // invalidCheckoutCandidate in renderCalendar()), but a rejected
+      // attempt is still reported right next to the calendar, not via a
+      // blocking alert(), and the guest's OLD selection is kept exactly as
+      // it was rather than silently restarting from the rejected date.
       if (isValidCheckout(selStart, dateISO)) {
         selEnd = dateISO;
+        renderCalendar();
       } else {
-        alert(STRINGS[lang].rangeUnavailable);
-        selStart = dateISO;
-        selEnd = null;
+        renderCalendar();
+        showCalendarNote(STRINGS[lang].rangeUnavailable, true);
       }
     }
+  }
+
+  // Lets the guest abandon an in-progress or completed date selection
+  // without having to hunt for a specific "undo" date to click — wired to
+  // the "Clear selection" / "Selectie wissen" / "Effacer la sélection" link
+  // renderCalendar() shows next to the calendar as soon as an arrival is
+  // picked (see the ae-cal-minstay-note block above).
+  function clearSelection() {
+    selStart = null;
+    selEnd = null;
     renderCalendar();
   }
 
@@ -1129,7 +1239,14 @@
       return false; // the capacity warning banner already explains why
     }
     if (!selStart || !selEnd) {
-      showStatus(t.pickBothDates, true);
+      // A date-selection problem is shown right next to the calendar —
+      // NOT only via #ae-booking-status at the bottom of the form, below
+      // the personal-data fields, which is where this used to surface
+      // (the guest would submit, then have to scroll back up past their
+      // own name/email/phone to find out the calendar itself needed more
+      // input).
+      showCalendarNote(t.pickBothDates, true);
+      showStatus("", false);
       return false;
     }
     const name = document.getElementById("guest-name").value.trim();
@@ -1138,8 +1255,15 @@
       showStatus(t.fillNameEmail, true);
       return false;
     }
-    if (!rangeIsFree(selStart, selEnd)) {
-      showStatus(t.rangeUnavailable, true);
+    // isValidCheckout() (not just rangeIsFree()) — the same full check
+    // renderCalendar()/pickDate() already require for this date pair to
+    // ever have been offered as clickable, so a stale selection (e.g. the
+    // owner changed the minimum-stay or Saturday-turnover rule from
+    // /admin between page load and submit) is caught here too, not only
+    // whether the interior nights happen to still be free.
+    if (!isValidCheckout(selStart, selEnd)) {
+      showCalendarNote(t.rangeUnavailable, true);
+      showStatus("", false);
       return false;
     }
     const termsEl = document.getElementById("terms-accept");
@@ -1303,6 +1427,7 @@
       if (childrenEl) childrenEl.addEventListener("change", refreshQuote);
     },
     pickDate,
+    clearSelection,
     prevMonth: () => changeMonth(-1),
     nextMonth: () => changeMonth(1),
     submit: submitBooking,

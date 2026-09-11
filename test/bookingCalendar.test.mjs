@@ -66,7 +66,8 @@ function buildContext(availabilityPayload) {
   const ids = [
     "ae-cal-days", "ae-cal-month-label", "ae-booking-submit", "total-guests", "children",
     "ae-cal-nights", "ae-cal-minstay-note", "checkin", "checkout", "ae-price-breakdown",
-    "ae-capacity-warning",
+    "ae-capacity-warning", "guest-name", "guest-email", "guest-phone", "guest-message",
+    "terms-accept", "ae-booking-status", "ae-booking-form",
   ];
   for (const id of ids) ALL.push(seed(id));
 
@@ -83,6 +84,9 @@ function buildContext(availabilityPayload) {
     }
     if (String(url).includes("quote")) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+    }
+    if (String(url).includes("book")) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, checkoutUrl: "https://stripe.example/test-session" }) });
     }
     return Promise.reject(new Error("unexpected fetch: " + url));
   }
@@ -383,4 +387,196 @@ test("server: winter's 30-night minimum and the 4-night-gap exception are both u
     { busyNights: new Set(["2027-06-14", "2027-06-19"]) }
   );
   assert.equal(quote.fourNightGapException, true, "expected the pre-existing 4-night-gap exception to still apply unchanged");
+});
+
+// ---- selection-state note, "earliest check-out" hint, and clear-selection
+// link (new: "de kalender moet ongeldige vertrekdatums onmiddellijk
+// uitschakelen" + "toon direct bij de kalender een duidelijke melding") ---
+
+test("calendar: arrival 7 May, default 5-night minimum -> the next 4 days are disabled, 12 May is the first valid checkout, and the note next to the calendar says so", async () => {
+  const rates = buildRates();
+  const { context, documentStub } = buildContext(buildAvailabilityPayload(rates));
+  await init(context, documentStub);
+  await gotoMonth(context, documentStub, "may 2027");
+  context.window.AE_BOOKING.pickDate("2027-05-07");
+  for (const disabled of ["2027-05-08", "2027-05-09", "2027-05-10", "2027-05-11"]) {
+    const cell = cellFor(documentStub, disabled);
+    assert.ok(!isClickable(cell), `expected ${disabled} disabled (fewer than 5 nights from 7 May)\n${cell}`);
+  }
+  const validCell = cellFor(documentStub, "2027-05-12");
+  assert.ok(isClickable(validCell), `expected 2027-05-12 clickable (exactly 5 nights from 7 May)\n${validCell}`);
+  const note = documentStub.getElementById("ae-cal-minstay-note");
+  assert.match(note.innerHTML, /5 nights/, `expected the note to mention the 5-night minimum\n${note.innerHTML}`);
+  assert.match(note.innerHTML, /12 May/, `expected the note to name 12 May as the earliest check-out\n${note.innerHTML}`);
+});
+
+test("calendar: a 4-night minimum disables exactly the next 3 days, not 4", async () => {
+  const rates = buildRates();
+  rates["2027-05-01"] = { priceCents: 10000, minNights: 4 };
+  const { context, documentStub } = buildContext(buildAvailabilityPayload(rates));
+  await init(context, documentStub);
+  await gotoMonth(context, documentStub, "may 2027");
+  context.window.AE_BOOKING.pickDate("2027-05-01");
+  for (const disabled of ["2027-05-02", "2027-05-03", "2027-05-04"]) {
+    const cell = cellFor(documentStub, disabled);
+    assert.ok(!isClickable(cell), `expected ${disabled} disabled (fewer than 4 nights from 1 May)\n${cell}`);
+  }
+  const validCell = cellFor(documentStub, "2027-05-05");
+  assert.ok(isClickable(validCell), `expected 2027-05-05 clickable (exactly 4 nights from 1 May)\n${validCell}`);
+});
+
+test("calendar: winter's 30-night minimum — arrival 20 January, 18 February rejected, 19 February the first valid checkout, note names it", async () => {
+  const rates = buildRates();
+  const { context, documentStub } = buildContext(buildAvailabilityPayload(rates));
+  await init(context, documentStub);
+  await gotoMonth(context, documentStub, "january 2027");
+  context.window.AE_BOOKING.pickDate("2027-01-20");
+  await gotoMonth(context, documentStub, "february 2027");
+  const rejected = cellFor(documentStub, "2027-02-18");
+  assert.ok(!isClickable(rejected), `expected 2027-02-18 rejected (29 nights, short of the 30-night winter minimum)\n${rejected}`);
+  const accepted = cellFor(documentStub, "2027-02-19");
+  assert.ok(isClickable(accepted), `expected 2027-02-19 accepted (exactly 30 nights)\n${accepted}`);
+  const note = documentStub.getElementById("ae-cal-minstay-note");
+  assert.match(note.innerHTML, /30 nights/, `expected the note to mention the 30-night minimum\n${note.innerHTML}`);
+  assert.match(note.innerHTML, /19 February/, `expected the note to name 19 February as the earliest check-out\n${note.innerHTML}`);
+});
+
+test("calendar: the 'clear selection' link is offered once an arrival is picked, and actually clears it", async () => {
+  const rates = buildRates();
+  const { context, documentStub } = buildContext(buildAvailabilityPayload(rates));
+  await init(context, documentStub);
+  await gotoMonth(context, documentStub, "june 2027");
+  context.window.AE_BOOKING.pickDate("2027-06-18");
+  const note = documentStub.getElementById("ae-cal-minstay-note");
+  assert.match(note.innerHTML, /AE_BOOKING\.clearSelection\(\)/, `expected a clear-selection control next to the calendar\n${note.innerHTML}`);
+  context.window.AE_BOOKING.clearSelection();
+  const nightsEl = documentStub.getElementById("ae-cal-nights");
+  assert.equal(nightsEl.textContent, STRINGS_EN_selectRange(context), "expected the selection to be fully cleared");
+  const cellAfterClear = cellFor(documentStub, "2027-06-18");
+  assert.ok(isClickable(cellAfterClear), "expected 2027-06-18 clickable again as a fresh arrival after clearing");
+});
+
+function STRINGS_EN_selectRange() {
+  return "Select your check-in and check-out dates on the calendar";
+}
+
+test("calendar: an invalid checkout attempt (defense in depth) reports the error next to the calendar and keeps the existing arrival selected", async () => {
+  const rates = buildRates();
+  const { context, documentStub } = buildContext(buildAvailabilityPayload(rates));
+  await init(context, documentStub);
+  await gotoMonth(context, documentStub, "june 2027");
+  context.window.AE_BOOKING.pickDate("2027-06-18");
+  // Bypasses the UI's own clickability gate to exercise pickDate()'s
+  // internal defense-in-depth check directly.
+  context.window.AE_BOOKING.pickDate("2027-06-19"); // only 1 night — invalid
+  const note = documentStub.getElementById("ae-cal-minstay-note");
+  assert.match(note.textContent, /already booked or requested|Please pick different dates/i, `expected the range-unavailable message next to the calendar\n${note.textContent}`);
+  // The original arrival must still be intact — completing a genuinely
+  // valid checkout afterwards should still work.
+  context.window.AE_BOOKING.pickDate("2027-06-23");
+  const checkoutEl = documentStub.getElementById("checkout");
+  assert.match(checkoutEl.textContent, /23/, `expected the checkout to have completed at 2027-06-23\n${checkoutEl.textContent}`);
+});
+
+// ---- submit-time messaging: selection problems now surface NEXT TO the
+// calendar, not only via #ae-booking-status below the personal-data fields
+// (the explicitly reported bug) ----------------------------------------
+
+test("submit: no dates selected -> the error appears next to the calendar, not only at the bottom of the form", async () => {
+  const rates = buildRates();
+  const { context, documentStub } = buildContext(buildAvailabilityPayload(rates));
+  await init(context, documentStub);
+  const fakeEvent = { preventDefault() {} };
+  await context.window.AE_BOOKING.submit(fakeEvent);
+  const note = documentStub.getElementById("ae-cal-minstay-note");
+  const status = documentStub.getElementById("ae-booking-status");
+  assert.match(note.textContent, /select both a check-in and a check-out/i, `expected the calendar note to explain the missing selection\n${note.textContent}`);
+  assert.equal(status.textContent, "", "expected the bottom status area to stay empty for this specific error");
+});
+
+test("submit: a complete, genuinely valid selection does not trigger the calendar-note error path (regression check for the isValidCheckout upgrade)", async () => {
+  const rates = buildRates();
+  const { context, documentStub } = buildContext(buildAvailabilityPayload(rates));
+  await init(context, documentStub);
+  await gotoMonth(context, documentStub, "june 2027");
+  context.window.AE_BOOKING.pickDate("2027-06-18");
+  context.window.AE_BOOKING.pickDate("2027-06-23");
+  documentStub.getElementById("guest-name").value = "Test Guest";
+  documentStub.getElementById("guest-email").value = "guest@example.com";
+  documentStub.getElementById("guest-phone").value = "";
+  documentStub.getElementById("guest-message").value = "";
+  const termsEl = documentStub.getElementById("terms-accept");
+  termsEl.checked = true;
+  const fakeEvent = { preventDefault() {} };
+  await context.window.AE_BOOKING.submit(fakeEvent);
+  const note = documentStub.getElementById("ae-cal-minstay-note");
+  assert.doesNotMatch(note.textContent, /already booked|select both/i, `expected no selection-error text after a valid, complete booking submit\n${note.textContent}`);
+});
+
+// ---- direct regression test for the live bug report: "na het kiezen van
+// 17 juli lijkt alles aanklikbaar, maar dat is het niet" — picking a
+// high-season Saturday arrival must leave ONLY the next Saturdays (7/14/...
+// nights later) with the normal available look; every other day in between
+// must be BOTH functionally non-clickable AND visually unmistakable from an
+// available tile (this was the guest-facing complaint: opacity+line-through
+// alone didn't read as clearly disabled) ----------------------------------
+test("calendar: arrival 17 July (high season) — only 24 and 31 July (the next Saturdays) stay available-looking; every day in between is dark, struck through, and NOT just dimmed available styling", async () => {
+  const rates = buildRates();
+  const { context, documentStub } = buildContext(buildAvailabilityPayload(rates));
+  await init(context, documentStub);
+  await gotoMonth(context, documentStub, "july 2027");
+  context.window.AE_BOOKING.pickDate("2027-07-17");
+
+  const validCheckouts = ["2027-07-24", "2027-07-31"];
+  const invalidCheckouts = [
+    "2027-07-18", "2027-07-19", "2027-07-20", "2027-07-21", "2027-07-22", "2027-07-23",
+    "2027-07-25", "2027-07-26", "2027-07-27", "2027-07-28", "2027-07-29", "2027-07-30",
+  ];
+
+  for (const d of validCheckouts) {
+    const cell = cellFor(documentStub, d);
+    assert.ok(isClickable(cell), `expected ${d} clickable (next high-season Saturday)\n${cell}`);
+    assert.match(cell, /var\(--bg-available\)/, `expected ${d} to use the normal available background\n${cell}`);
+  }
+
+  for (const d of invalidCheckouts) {
+    const cell = cellFor(documentStub, d);
+    assert.ok(!isClickable(cell), `expected ${d} NOT clickable (not a valid high-season checkout)\n${cell}`);
+    // The exact complaint: these must not merely be dimmed while still
+    // using the same fill as an available day. They must use the darker
+    // panel background, be struck through, and show a non-clickable
+    // cursor — the same treatment already used for booked/held nights.
+    assert.doesNotMatch(cell, /var\(--bg-available\)/, `expected ${d} to NOT use the available background\n${cell}`);
+    assert.match(cell, /var\(--bg-panel\)/, `expected ${d} to use the darker panel background\n${cell}`);
+    assert.match(cell, /text-decoration: line-through/, `expected ${d} to be struck through\n${cell}`);
+    assert.match(cell, /cursor: not-allowed/, `expected ${d} to show a not-allowed cursor\n${cell}`);
+    assert.match(cell, /aria-disabled="true"/, `expected ${d} to be aria-disabled\n${cell}`);
+  }
+});
+
+test("calendar: Saturday arrival in high season with enough nights but a non-Saturday departure is still rejected (Saturday-turnover, isolated from minimum-stay)", async () => {
+  const rates = buildRates();
+  const { context, documentStub } = buildContext(buildAvailabilityPayload(rates));
+  await init(context, documentStub);
+  await gotoMonth(context, documentStub, "july 2027");
+  context.window.AE_BOOKING.pickDate("2027-07-03");
+  // 2027-07-11 is 8 nights later (well past the 7-night minimum) but a
+  // Sunday, not a Saturday — must still be rejected, isolating the
+  // Saturday-turnover check from the minimum-stay check.
+  const cell11 = cellFor(documentStub, "2027-07-11");
+  assert.ok(!isClickable(cell11), `expected 2027-07-11 NOT clickable (enough nights, but not a Saturday)\n${cell11}`);
+});
+
+test("calendar: a booked/blocked night inside the requested range makes every checkout candidate past it non-clickable, outside the narrow 4-night-gap exception", async () => {
+  const rates = buildRates();
+  // 2027-06-22 is an ordinary (non-gap) confirmed booking sitting between a
+  // 18 June arrival and what would otherwise be a valid 25 June (7-night)
+  // checkout.
+  const payload = buildAvailabilityPayload(rates, { busyNights: ["2027-06-22"] });
+  const { context, documentStub } = buildContext(payload);
+  await init(context, documentStub);
+  await gotoMonth(context, documentStub, "june 2027");
+  context.window.AE_BOOKING.pickDate("2027-06-18");
+  const cell25 = cellFor(documentStub, "2027-06-25");
+  assert.ok(!isClickable(cell25), `expected 2027-06-25 NOT clickable — 2027-06-22 is booked in between and this isn't the narrow 4-night-gap case\n${cell25}`);
 });
