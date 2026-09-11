@@ -72,7 +72,7 @@
       nextMonth: "Next month",
       dayBooked: "booked",
       dayOwnBlocked: "not available (owner's own use)",
-      dayRequested: "requested, awaiting approval",
+      dayRequested: "held, payment in progress",
       dayAvailable: "available",
       dayPast: "past date",
       dayNoPrice: "not yet open for booking",
@@ -138,7 +138,7 @@
       nextMonth: "Mois suivant",
       dayBooked: "réservé",
       dayOwnBlocked: "indisponible (usage personnel du propriétaire)",
-      dayRequested: "en demande, en attente d'approbation",
+      dayRequested: "retenu, paiement en cours",
       dayAvailable: "disponible",
       dayPast: "date passée",
       dayNoPrice: "pas encore ouvert à la réservation",
@@ -204,7 +204,7 @@
       nextMonth: "Volgende maand",
       dayBooked: "geboekt",
       dayOwnBlocked: "niet beschikbaar (eigen gebruik)",
-      dayRequested: "aangevraagd, in afwachting van goedkeuring",
+      dayRequested: "tijdelijk vastgehouden, betaling bezig",
       dayAvailable: "beschikbaar",
       dayPast: "verstreken datum",
       dayNoPrice: "nog niet open voor boeking",
@@ -417,7 +417,19 @@
       opt.textContent = String(i);
       childrenEl.appendChild(opt);
     }
-    childrenEl.value = Number(prev) <= maxChildren ? prev : String(maxChildren);
+    // An empty `prev` (the very first render, before the guest has ever
+    // touched this field) must resolve to an explicit "0", not the empty
+    // string — assigning "" here would match no <option>, leaving the
+    // select showing blank (selectedIndex -1) even though 0 children is
+    // already the effective value used everywhere else (getPartySize()/
+    // derivePartySize() both treat a blank value as 0). Purely cosmetic —
+    // no quote ever came out wrong — but a blank-looking field right next
+    // to a populated "total guests" field reads as broken.
+    if (prev === "") {
+      childrenEl.value = "0";
+    } else {
+      childrenEl.value = Number(prev) <= maxChildren ? prev : String(maxChildren);
+    }
   }
 
   // Independent per-field maximums (adults 1..maxAdults, children
