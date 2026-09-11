@@ -42,6 +42,11 @@
   };
   let bookingsById = {};
   let openBookingId = null;
+  // null = unknown (no key set yet), true = Stripe test key, false = live
+  // key — set from admin-bookings.mjs's own read of STRIPE_SECRET_KEY, never
+  // guessed client-side. Used only to word the cancel+refund confirmations
+  // honestly (see handleCancelAndRefund) — never to change any behavior.
+  let stripeTestMode = null;
 
   let settings = null;
   let rates = {};
@@ -186,6 +191,7 @@
     el.innerHTML = "Laden…";
     const { ok, data } = await api("admin-bookings");
     if (!ok) { el.innerHTML = "Kon aanvragen niet laden."; return; }
+    stripeTestMode = typeof data.stripeTestMode === "boolean" ? data.stripeTestMode : null;
     if (!data.bookings.length) { el.innerHTML = "<p class=\"admin-dim\">Nog geen aanvragen.</p>"; bookingsById = {}; return; }
     bookingsById = Object.fromEntries(data.bookings.map((b) => [b.id, b]));
     renderBookingsTable();
@@ -386,13 +392,24 @@
     const reasonInput = document.getElementById(`ae-cancel-reason-${id}`);
     const reason = reasonInput ? reasonInput.value.trim() : "";
     const guestLine = `${escapeHtml(b.name)} (${escapeHtml(b.email)}), ${fmtDateNL(b.checkin)} → ${fmtDateNL(b.checkout)}`;
+    // Only ever asserts "test mode" when the server-reported key is
+    // definitely sk_test_ (stripeTestMode === true) — never claimed on a
+    // guess, and never omitted once known, so a real refund is never
+    // wrongly softened either. See loadBookings()/admin-bookings.mjs.
+    const testBadge = stripeTestMode === true ? "🧪 Stripe TESTMODUS (geen echt geld). " : "";
 
     const step1 = isRetry
-      ? `Terugbetaling van ${fmtEuro(amountCents)} aan ${guestLine} opnieuw proberen bij Stripe?`
-      : `Boeking van ${guestLine} annuleren én ${fmtEuro(amountCents)} terugbetalen via Stripe? De data komen weer vrij. Dit kan niet ongedaan worden gemaakt.`;
+      ? `${testBadge}Stap 1/2 — Terugbetaling van ${fmtEuro(amountCents)} aan ${guestLine} opnieuw proberen bij Stripe?`
+      : `${testBadge}Stap 1/2 — Boeking van ${guestLine} annuleren én ${fmtEuro(amountCents)} terugbetalen via Stripe? De data komen weer vrij. Dit kan niet ongedaan worden gemaakt.`;
 
     showBookingConfirm(step1, () => {
-      const step2 = `Laatste bevestiging: hiermee start je een echte Stripe-terugbetaling van ${fmtEuro(amountCents)} aan ${guestLine}. Weet je dit zeker?`;
+      const step2 = isRetry
+        ? `${testBadge}Stap 2/2 (laatste bevestiging) — hiermee wordt de terugbetaling van ${fmtEuro(amountCents)} aan ${guestLine} nu opnieuw ingediend bij Stripe${stripeTestMode === true ? " (testmodus)" : ""}. Weet je dit zeker?`
+        : `${testBadge}Stap 2/2 (laatste bevestiging) — hiermee wordt de Stripe-terugbetaling van ${fmtEuro(amountCents)} aan ${guestLine} nu daadwerkelijk gestart${stripeTestMode === true ? " (testmodus)" : ""}. Weet je dit zeker?`;
+      // Deliberately distinct button text per step (see review: the two
+      // near-identical dialogs read as if the first click "didn't do
+      // anything") — step 1's button just moves to the second, real
+      // confirmation; step 2's button names the actual action about to fire.
       showBookingConfirm(step2, async () => {
         const resultEl = document.getElementById(`ae-detail-result-${id}`);
         const { ok, data } = await api("admin-booking-action", {
@@ -425,16 +442,21 @@
             freshResultEl.innerHTML = `✓ Boeking geannuleerd. Terugbetaling van ${fmtEuro(data.refund?.amountToRefundCents ?? amountCents)} is gestart bij Stripe (wacht nog op bevestiging).`;
           }
         }
-      });
-    });
+      }, { yesLabel: isRetry ? "Ja, opnieuw proberen" : "Ja, nu terugbetalen" });
+    }, { yesLabel: "Ja, doorgaan naar bevestiging" });
   }
 
-  function showBookingConfirm(text, onYes) {
+  // opts.yesLabel overrides the "Yes" button's text for this one dialog
+  // (default "Ja, doorgaan") — used so a chain of two confirmations (see
+  // handleCancelAndRefund) reads as two distinct steps rather than the same
+  // button seemingly doing nothing the first time it's clicked.
+  function showBookingConfirm(text, onYes, opts = {}) {
     const box = document.getElementById("ae-bookings-confirm-box");
     document.getElementById("ae-bookings-confirm-text").textContent = text;
     box.hidden = false;
     const yes = document.getElementById("ae-bookings-confirm-yes");
     const no = document.getElementById("ae-bookings-confirm-no");
+    yes.textContent = opts.yesLabel || "Ja, doorgaan";
     const cleanup = () => { box.hidden = true; yes.onclick = null; no.onclick = null; };
     yes.onclick = async () => { cleanup(); await onYes(); };
     no.onclick = cleanup;

@@ -11,6 +11,18 @@ function client() {
   return new Stripe(key);
 }
 
+// Whether the configured STRIPE_SECRET_KEY is a test-mode key ("sk_test_…")
+// rather than a live key ("sk_live_…"). Purely informational — never used to
+// change any pricing/refund behavior — so /admin can say plainly "this is a
+// test refund, no real money moves" instead of ever letting a test action
+// read as if it were a live one. Returns null (unknown) if no key is set at
+// all, so the UI can distinguish "definitely test" from "can't tell".
+export function isStripeTestMode() {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) return null;
+  return key.startsWith("sk_test_");
+}
+
 const LINE_LABELS = {
   en: {
     stay: (b) => `Stay: ${b.checkin} → ${b.checkout} (${b.quote.nights} nights)`,

@@ -6,6 +6,7 @@
 import { listBookings, getPricingSettings } from "./_lib/store.mjs";
 import { effectiveStatus } from "./_lib/availability.mjs";
 import { hasValidAdminSession, adminUnauthorizedResponse } from "./_lib/adminAuth.mjs";
+import { isStripeTestMode } from "./_lib/stripe.mjs";
 
 export default async (req) => {
   if (!hasValidAdminSession(req)) return adminUnauthorizedResponse();
@@ -72,7 +73,10 @@ export default async (req) => {
     })
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-  return new Response(JSON.stringify({ ok: true, bookings: summary }), {
+  // Purely informational, shown on the cancel+refund confirmation dialogs
+  // (see admin.js's handleCancelAndRefund) so a test refund is never worded
+  // as if it were real money moving — never used to change any behavior.
+  return new Response(JSON.stringify({ ok: true, bookings: summary, stripeTestMode: isStripeTestMode() }), {
     headers: { "content-type": "application/json" },
   });
 };

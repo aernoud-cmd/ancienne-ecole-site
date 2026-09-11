@@ -398,6 +398,88 @@ test("Saturday-turnover rule is decoupled from minNights: a 7-night minimum WITH
   assert.equal(q.nights, 7);
 });
 
+// The exact, Aernoud-approved high-season 2027 window: nights 2027-07-03
+// (Saturday) through 2027-09-03 (Friday) — 9 full weeks, 63 nights — with
+// checkout on 2027-09-04 (Saturday) as the last possible departure. These
+// tests use the literal governing dates (not a placeholder period) so the
+// window itself is pinned down, on top of the generic Saturday-turnover
+// tests above which prove the underlying rule in isolation.
+function realHighSeason2027Rates() {
+  const rates = {
+    // A laxer shoulder night right before the window: its own 5-night
+    // minimum, no saturdayTurnover flag — used to prove the rule still
+    // applies to a stay that starts here but reaches into the window.
+    "2027-07-02": { priceCents: 15000, minNights: 5 },
+  };
+  let d = new Date("2027-07-03T00:00:00Z");
+  const end = new Date("2027-09-03T00:00:00Z");
+  while (d <= end) {
+    const iso = d.toISOString().slice(0, 10);
+    rates[iso] = { priceCents: 25000, minNights: 7, saturdayTurnover: true };
+    d = new Date(d.getTime() + 86400000);
+  }
+  return rates;
+}
+
+test("2027 high season: the earliest possible arrival (2027-07-03, Saturday) can depart exactly 7 nights later (2027-07-10, Saturday)", () => {
+  const settings = baseSettings();
+  const rates = realHighSeason2027Rates();
+  const q = calculateQuote({ checkin: "2027-07-03", checkout: "2027-07-10", adults: 2, children: 0 }, settings, rates);
+  assert.equal(q.nights, 7);
+});
+
+test("2027 high season: satisfying the 7-night minimum is not enough on its own — 2027-07-03 to a non-Saturday 2027-07-11 (8 nights) is still rejected", () => {
+  const settings = baseSettings();
+  const rates = realHighSeason2027Rates();
+  const err = expectQuoteError(() =>
+    calculateQuote({ checkin: "2027-07-03", checkout: "2027-07-11", adults: 2, children: 0 }, settings, rates)
+  );
+  assert.equal(err.code, "SATURDAY_TURNOVER_REQUIRED");
+});
+
+test("2027 high season: a 14-night (two-week) stay from 2027-07-03 to 2027-07-17 is accepted", () => {
+  const settings = baseSettings();
+  const rates = realHighSeason2027Rates();
+  const q = calculateQuote({ checkin: "2027-07-03", checkout: "2027-07-17", adults: 2, children: 0 }, settings, rates);
+  assert.equal(q.nights, 14);
+});
+
+test("2027 high season: the last possible departure is 2027-09-04 (Saturday), 7 nights after 2027-08-28", () => {
+  const settings = baseSettings();
+  const rates = realHighSeason2027Rates();
+  const q = calculateQuote({ checkin: "2027-08-28", checkout: "2027-09-04", adults: 2, children: 0 }, settings, rates);
+  assert.equal(q.nights, 7);
+});
+
+test("2027 high season: an arrival the day before the window (2027-07-02, its own 5-night minimum) that stays into it still requires the Saturday rule", () => {
+  const settings = baseSettings();
+  const rates = realHighSeason2027Rates();
+  // 07-02 -> 07-07: 5 nights, satisfies the arrival date's own minimum (5),
+  // but touches 07-03..07-06 which are saturdayTurnover-flagged.
+  const err = expectQuoteError(() =>
+    calculateQuote({ checkin: "2027-07-02", checkout: "2027-07-07", adults: 2, children: 0 }, settings, rates)
+  );
+  assert.equal(err.code, "SATURDAY_TURNOVER_REQUIRED");
+});
+
+test("2027 high season: the exactly-4-free-nights exception never applies inside this window even if neighboring nights are busy", () => {
+  const settings = baseSettings();
+  const rates = realHighSeason2027Rates();
+  // A hypothetical 4-night slice fully inside the window (which has its own
+  // 7-night minimum, not 5) — arrivalMinNights !== 5 alone already closes
+  // the exception, confirmed here with the real window's own rates.
+  const busyNights = new Set(["2027-07-19", "2027-07-24"]); // night before / checkout night
+  const err = expectQuoteError(() =>
+    calculateQuote(
+      { checkin: "2027-07-20", checkout: "2027-07-24", adults: 2, children: 0 },
+      settings,
+      rates,
+      { busyNights }
+    )
+  );
+  assert.equal(err.code, "MIN_NIGHTS_NOT_MET");
+});
+
 // The exactly-4-free-nights-between-two-bookings exception — see
 // _lib/pricing.mjs fourNightGapException(). All dates below sit in a plain
 // 5-night-minimum period; 2027-10-01..04 are "busy" (an existing booking's
