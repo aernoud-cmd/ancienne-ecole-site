@@ -70,8 +70,11 @@
       checkingAvailability: "Checking availability…",
       prevMonth: "Previous month",
       nextMonth: "Next month",
-      dayBooked: "booked",
-      dayOwnBlocked: "not available (owner's own use)",
+      // One neutral word for every reason a night isn't bookable (a synced
+      // Airbnb/confirmed booking, or the owner's own block) — see the style
+      // logic in renderCalendar() for why this is deliberately not split
+      // into "booked" vs "owner's own use" on the guest side.
+      dayUnavailable: "not available",
       dayRequested: "held, payment in progress",
       dayAvailable: "available",
       dayPast: "past date",
@@ -136,8 +139,7 @@
       checkingAvailability: "Vérification des disponibilités…",
       prevMonth: "Mois précédent",
       nextMonth: "Mois suivant",
-      dayBooked: "réservé",
-      dayOwnBlocked: "indisponible (usage personnel du propriétaire)",
+      dayUnavailable: "indisponible",
       dayRequested: "retenu, paiement en cours",
       dayAvailable: "disponible",
       dayPast: "date passée",
@@ -202,8 +204,7 @@
       checkingAvailability: "Beschikbaarheid controleren…",
       prevMonth: "Vorige maand",
       nextMonth: "Volgende maand",
-      dayBooked: "geboekt",
-      dayOwnBlocked: "niet beschikbaar (eigen gebruik)",
+      dayUnavailable: "niet beschikbaar",
       dayRequested: "tijdelijk vastgehouden, betaling bezig",
       dayAvailable: "beschikbaar",
       dayPast: "verstreken datum",
@@ -621,21 +622,24 @@
         statusWord = t.dayPast;
       } else if (isRangeEdge) {
         style = "background: var(--gold); color: #1a1408; font-weight: 600; cursor:pointer;";
-        if (isOwnBlocked) statusWord = t.dayOwnBlocked;
-        else if (isBusy) statusWord = t.dayBooked;
+        if (isOwnBlocked || isBusy) statusWord = t.dayUnavailable;
         else if (isNoPrice) statusWord = t.dayNoPrice;
-      } else if (isOwnBlocked) {
-        // Deliberately a distinct rust/rose tone (not the neutral grey used
-        // for "booked") — the same color the admin calendar's own "Eigen
-        // blokkade" legend dot uses, so the two views read consistently.
-        style = "background: rgba(217,140,140,0.14); color: var(--text-dim); border: 1px solid rgba(217,140,140,0.45); text-decoration: line-through;";
-        statusWord = t.dayOwnBlocked;
-        if (validAsCheckout) style += "cursor:pointer;";
-      } else if (isBusy) {
-        // Darker than --bg-available on purpose — a booked day should
-        // recede, not compete visually with the free days around it.
+      } else if (isOwnBlocked || isBusy) {
+        // Deliberately ONE neutral look and ONE neutral word for every
+        // reason a night isn't bookable — an owner's own-use block
+        // (isOwnBlocked) and a busy night from the Airbnb/confirmed-
+        // bookings feed (isBusy) used to read as two different *kinds* of
+        // booking ("owner's own use" vs "booked (per our Airbnb
+        // calendar)"). That was never actually knowable from the guest
+        // side: a block synced from the Airbnb feed isn't necessarily an
+        // Airbnb-made booking, and the owner doesn't track "own use"
+        // separately from any other reason a night might be blocked. The
+        // real distinction (own block vs. synced/confirmed booking) still
+        // exists and still matters internally — see admin/admin.js's own
+        // calendar, which keeps it — this is only about not asserting a
+        // reason to the guest that the data can't actually back up.
         style = "background: var(--bg-panel); color: var(--text-dim); text-decoration: line-through;";
-        statusWord = t.dayBooked;
+        statusWord = t.dayUnavailable;
         if (validAsCheckout) style += "cursor:pointer;border:1px dashed var(--gold-soft);";
       } else if (isPending) {
         style = "background: var(--bg-panel); color: var(--text-dim); border: 1px dashed var(--gold-soft);";
