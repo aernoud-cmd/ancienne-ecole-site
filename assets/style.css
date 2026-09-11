@@ -32,7 +32,83 @@ h1, h2, h3 { font-family: 'Cormorant Garamond', serif; font-weight: 500; margin:
 .field { display: flex; flex-direction: column; gap: 8px; }
 .field label { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dim); }
 .field .input { border: 1px solid var(--line); background: var(--bg-panel2); padding: 13px 14px; font-size: 14.5px; color: var(--text); border-radius: 2px; }
-.day { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: 13px; border-radius: 2px; }
+.day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  border-radius: 2px;
+  /* CSS Grid gives a bare `1fr` track column an automatic MINIMUM size
+     based on its content (same hazard flex items have) — without this, a
+     day cell whose content can't shrink far enough would force its whole
+     column (and therefore the 7-column grid, and therefore the calendar)
+     wider than its container instead of just clipping, which is exactly
+     the real-iframe clipping bug reported at narrow WordPress widths. The
+     day-grid tracks themselves are also written as minmax(0, 1fr) (see
+     reserve.html/embed variants) as the primary fix; this is the second,
+     belt-and-braces layer: whatever ends up inside a tile (day number,
+     price, min-nights label) is clipped to the tile's own box rather than
+     ever pushing the grid wider. */
+  overflow: hidden;
+}
+/* The calendar's own month-navigation header (prev/next + the month
+   label) is a THIRD, independent overflow source from the grid above —
+   the flex row itself was always correctly constrained to the column's
+   width, but "November 2026"/"septembre 2026"-length month names at
+   font-size:26px (see reserve.html/embed variants) have no default
+   permission to shrink below their own full-text width inside a flex
+   item (a flex item's automatic min-width is its content's, not 0) and
+   were overflowing past the two nav buttons on very narrow real iframe
+   widths (reported: ~288px), clipped invisibly by body's overflow-x:hidden
+   — this is what actually caused "next-month arrow and Sunday column look
+   cut off". min-width: 0 is the standard fix: it lets the label shrink and
+   wrap onto a second line instead of forcing the row wider. */
+#ae-cal-month-label { min-width: 0; overflow-wrap: break-word; }
+/* Compact per-tile price + minimum-nights display (guest calendar only —
+   see assets/booking.js renderCalendar()). Shown on every priced, guest-
+   relevant day (not on past/unavailable/held/not-yet-priced tiles, which
+   keep the plain centered day number exactly as before — see .day above).
+   Deliberately NOT modeled on any third-party calendar convention: three
+   small stacked lines inside the same square tile, using currentColor +
+   opacity so the price/min-nights text always matches whatever text color
+   the tile's own state already uses (available/selected/high-season) with
+   no per-state color rules needed. */
+.day.has-price { flex-direction: column; justify-content: center; gap: 1px; padding: 2px; line-height: 1; }
+.day.has-price .d-num { font-size: 13px; }
+.day.has-price .d-price { font-size: 9.5px; opacity: 0.82; font-variant-numeric: tabular-nums; }
+.day.has-price .d-min { font-size: 8px; opacity: 0.62; letter-spacing: 0.2px; }
+/* Two price spans always exist in the markup (see booking.js) — CSS alone
+   decides which is visible, so the tile's real content never depends on a
+   JS resize listener. Full locale-formatted price ("€320"/"320 €") by
+   default; the ≤340px tier below swaps to the bare-digit one. */
+.day.has-price .d-price-compact { display: none; }
+/* Narrow tier (covers real ~390px-and-below embed/mobile widths): every
+   day cell is smaller, so both extra lines shrink with it — content never
+   disappears, only gets more compact (see the ~300px tier below for the
+   real-iframe floor, ~280-300px). */
+@media (max-width: 460px) {
+  .ae-cal-nav-btn { padding: 7px 10px !important; }
+  #ae-cal-month-label { font-size: 21px !important; }
+  .day.has-price .d-num { font-size: 12px; }
+  .day.has-price .d-price { font-size: 8.5px; }
+  .day.has-price .d-min { font-size: 7.5px; }
+}
+/* Real-iframe floor: WordPress has been observed to render this embed at
+   ~280-300px even when the surrounding page viewport is nominally 320px
+   (theme padding around the iframe). At this width the two extra lines are
+   reduced to bare digits — no €/n suffix — to keep them legible; the exact
+   figures stay fully available in the tile's title/aria-label (unchanged)
+   and the one-line caption above the calendar explains the shorthand. */
+@media (max-width: 340px) {
+  .ae-cal-nav-btn { padding: 6px 8px !important; }
+  #ae-cal-month-label { font-size: 17px !important; }
+  .day.has-price .d-num { font-size: 11px; }
+  .day.has-price .d-price { font-size: 8px; }
+  .day.has-price .d-min { font-size: 7px; }
+  .day.has-price .d-price-full { display: none; }
+  .day.has-price .d-price-compact { display: inline; }
+}
 
 /* ---------- layout helpers ---------- */
 .row { display: flex; }

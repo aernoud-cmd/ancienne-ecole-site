@@ -81,6 +81,8 @@
       dayNoPrice: "not yet open for booking",
       minStaySuffix: (n) => `, minimum stay if arriving here: ${n} nights`,
       minStayNote: (n) => `Minimum stay: ${n} nights (some periods require longer — the calendar and price will tell you).`,
+      tilePriceSuffix: (amount) => `, ${amount} per night`,
+      tileCaption: "Every available day shows its nightly price and minimum stay (e.g. “5n” = 5 nights minimum).",
       termsHeading: "Booking terms, cancellation & deposit",
       termsBody:
         "You are booking directly with L'Ancienne École for the exact dates and price shown above. Payment is taken securely via Stripe on the next screen; your booking is confirmed the instant that payment succeeds — this is a real, immediate booking, not a request. The tourist tax is a local government charge collected on the owner's behalf. The refundable security deposit is charged together with the rest, and returned by bank transfer after your stay once the house has been checked for damage. To change or cancel a paid booking, please contact us directly — we'll confirm the terms that apply to your situation individually.",
@@ -146,6 +148,8 @@
       dayNoPrice: "pas encore ouvert à la réservation",
       minStaySuffix: (n) => `, séjour minimum en arrivant ici : ${n} nuits`,
       minStayNote: (n) => `Séjour minimum : ${n} nuits (certaines périodes exigent plus — le calendrier et le prix vous le préciseront).`,
+      tilePriceSuffix: (amount) => `, ${amount} par nuit`,
+      tileCaption: "Chaque jour disponible indique son prix par nuit et le séjour minimum (par ex. « 5n » = minimum 5 nuits).",
       termsHeading: "Conditions de réservation, annulation et caution",
       termsBody:
         "Vous réservez directement auprès de L'Ancienne École pour les dates et le prix exacts indiqués ci-dessus. Le paiement s'effectue en toute sécurité via Stripe à l'écran suivant ; votre réservation est confirmée dès que ce paiement aboutit — il s'agit d'une réservation réelle et immédiate, pas d'une demande. La taxe de séjour est une taxe locale collectée pour le compte de la commune. La caution remboursable est débitée en même temps que le reste, puis restituée par virement après votre séjour une fois la maison vérifiée. Pour modifier ou annuler une réservation payée, merci de nous contacter directement — nous confirmerons avec vous les conditions applicables à votre situation.",
@@ -211,6 +215,8 @@
       dayNoPrice: "nog niet open voor boeking",
       minStaySuffix: (n) => `, minimumverblijf bij aankomst hier: ${n} nachten`,
       minStayNote: (n) => `Minimumverblijf: ${n} nachten (voor sommige periodes geldt een langer minimum — de kalender en de prijs geven dit aan).`,
+      tilePriceSuffix: (amount) => `, ${amount} per nacht`,
+      tileCaption: "Elke beschikbare dag toont de prijs per nacht en het minimumverblijf (bijv. “5n” = minimum 5 nachten).",
       termsHeading: "Boekingsvoorwaarden, annulering & borg",
       termsBody:
         "Je boekt rechtstreeks bij L'Ancienne École voor de exacte data en prijs hierboven. Betalen gebeurt veilig via Stripe op het volgende scherm; je boeking is bevestigd zodra die betaling lukt — dit is een echte, directe boeking, geen aanvraag. De toeristenbelasting is een gemeentelijke heffing die namens de gemeente wordt geïnd. De terugbetaalbare borg wordt samen met de rest afgerekend en na je verblijf per bankoverschrijving terugbetaald zodra het huis is gecontroleerd. Wil je een betaalde boeking wijzigen of annuleren, neem dan rechtstreeks contact met ons op — we bevestigen dan samen met jou welke voorwaarden voor jouw situatie gelden.",
@@ -246,6 +252,14 @@
   // departure candidates — quote.mjs/book.mjs remain the real enforcement.
   let saturdayTurnoverNights = new Set();
   let minNightsByDate = {};
+  // {date: priceCents} — every night that has a price, already rounded to
+  // the nearest €5 exactly the way calculateQuote() rounds it (see
+  // _lib/availability.mjs buildPricesByDate() / _lib/money.mjs
+  // roundNightlyPriceCents()). Used only to show the nightly price directly
+  // on the calendar tile — the actual quote/charge is always recomputed
+  // server-side from this same source, never trusted from here.
+  let pricesByDate = {};
+  let calendarCurrency = "EUR";
   let defaultMinNights = 1;
   let capacity = { maxAdults: 8, maxChildren: 2, maxTotalGuests: 10 };
   let viewYear, viewMonth; // month is 0-indexed
@@ -323,6 +337,20 @@
       return new Intl.NumberFormat(lang === "en" ? "en-IE" : lang, { style: "currency", currency: currency || "EUR" }).format((cents || 0) / 100);
     } catch (e) {
       return `${currency || "EUR"} ${((cents || 0) / 100).toFixed(2)}`;
+    }
+  }
+
+  // Compact currency string for the calendar day tile (see renderCalendar())
+  // — same locale-correct symbol/placement as fmtMoneyCents, but without
+  // decimals: a nightly rate reaching the guest calendar has always already
+  // been rounded to a whole €5 (see _lib/money.mjs roundNightlyPriceCents),
+  // so ".00" never carries information and only costs the tile space it
+  // doesn't have to spare.
+  function fmtMoneyCentsCompact(cents, currency) {
+    try {
+      return new Intl.NumberFormat(lang === "en" ? "en-IE" : lang, { style: "currency", currency: currency || "EUR", maximumFractionDigits: 0 }).format((cents || 0) / 100);
+    } catch (e) {
+      return `${Math.round((cents || 0) / 100)}`;
     }
   }
 
@@ -682,11 +710,42 @@
           ? " — " + (lang === "nl" ? "aankomst" : lang === "fr" ? "arrivée" : "check-in")
           : " — " + (lang === "nl" ? "vertrek" : lang === "fr" ? "départ" : "check-out")
         : "";
-      const minOverride = minNightsByDate[dateISO];
-      const minSuffix = clickable && minOverride ? t.minStaySuffix(minOverride) : "";
-      const dayLabel = `${weekday} ${d} ${MONTH_NAMES[lang][viewMonth]}, ${statusWord}${edgeSuffix}${minSuffix}`;
-      const titleAttr = minSuffix ? ` title="${t.minStaySuffix(minOverride).replace(/^, /, "")}"` : "";
-      html += `<div class="day" role="gridcell" data-date="${dateISO}" style="${style}"${titleAttr} ${clickable ? `tabindex="0" onclick="AE_BOOKING.pickDate('${dateISO}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();AE_BOOKING.pickDate('${dateISO}')}"` : `tabindex="-1"`} aria-label="${dayLabel}" aria-disabled="${!clickable}">${d}</div>`;
+      // Every day that genuinely has a price and isn't past/unavailable/
+      // held/not-yet-priced shows that price directly on the tile, together
+      // with the effective minimum-stay length for that date — always, not
+      // only where it differs from the site default (explicit choice: a
+      // guest reads the calendar day by day, not as a once-per-month
+      // aggregate — see the plain-language note above the calendar for
+      // that aggregate view, which this doesn't replace).
+      const isPriceRelevant = !isPast && !isOwnBlocked && !isBusy && !isPending && !isNoPrice;
+      const tilePriceCents = isPriceRelevant ? pricesByDate[dateISO] : null;
+      const effectiveMinNights = minNightsByDate[dateISO] ?? defaultMinNights;
+      const hasTilePrice = isPriceRelevant && tilePriceCents != null;
+      // Accessible text mirrors exactly what's visually on a priced tile —
+      // a screen-reader user hears the same nightly price and minimum stay
+      // a sighted guest sees, not only the override-only text this used to
+      // carry.
+      const priceSuffix = hasTilePrice ? t.tilePriceSuffix(fmtMoneyCentsCompact(tilePriceCents, calendarCurrency)) : "";
+      const minSuffix = hasTilePrice ? t.minStaySuffix(effectiveMinNights) : "";
+      const dayLabel = `${weekday} ${d} ${MONTH_NAMES[lang][viewMonth]}, ${statusWord}${edgeSuffix}${priceSuffix}${minSuffix}`;
+      const titleBits = [];
+      if (priceSuffix) titleBits.push(priceSuffix.replace(/^, /, ""));
+      if (minSuffix) titleBits.push(minSuffix.replace(/^, /, ""));
+      const titleAttr = titleBits.length ? ` title="${titleBits.join(" · ")}"` : "";
+      // Two price spans (full locale-correct format, and bare digits) are
+      // both always in the markup — CSS alone toggles which one is visible
+      // per breakpoint (see assets/style.css), so the tile's real content
+      // never depends on a JS resize listener. aria-hidden on all three
+      // extra spans: the same information is already the tile's own
+      // aria-label above, so a screen reader isn't told it twice.
+      const tileInner = hasTilePrice
+        ? `<span class="d-num">${d}</span>` +
+          `<span class="d-price d-price-full" aria-hidden="true">${fmtMoneyCentsCompact(tilePriceCents, calendarCurrency)}</span>` +
+          `<span class="d-price d-price-compact" aria-hidden="true">${Math.round(tilePriceCents / 100)}</span>` +
+          `<span class="d-min" aria-hidden="true">${effectiveMinNights}n</span>`
+        : `${d}`;
+      const tileClass = hasTilePrice ? "day has-price" : "day";
+      html += `<div class="${tileClass}" role="gridcell" data-date="${dateISO}" style="${style}"${titleAttr} ${clickable ? `tabindex="0" onclick="AE_BOOKING.pickDate('${dateISO}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();AE_BOOKING.pickDate('${dateISO}')}"` : `tabindex="-1"`} aria-label="${dayLabel}" aria-disabled="${!clickable}">${tileInner}</div>`;
     }
     grid.setAttribute("role", "grid");
     grid.innerHTML = html;
@@ -798,6 +857,13 @@
       // did before this feature existed), never a fail-closed error.
       saturdayTurnoverNights = new Set(Array.isArray(data.saturdayTurnoverNights) ? data.saturdayTurnoverNights : []);
       minNightsByDate = data.minNightsByDate || {};
+      // Same "must not break on an older/rolling deploy" reasoning as
+      // ownBlockedNights/saturdayTurnoverNights above — an absent field
+      // just means no per-tile price is shown yet (the calendar still
+      // behaves exactly as before this feature existed), never a
+      // fail-closed error.
+      pricesByDate = data.pricesByDate && typeof data.pricesByDate === "object" ? data.pricesByDate : {};
+      if (data.currency) calendarCurrency = data.currency;
       if (data.defaultMinNights) defaultMinNights = data.defaultMinNights;
       capacity = data.capacity;
       availabilityOk = true;

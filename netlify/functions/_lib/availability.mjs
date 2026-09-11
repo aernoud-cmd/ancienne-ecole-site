@@ -6,6 +6,7 @@
 // differently.
 import { getAirbnbBusyNights, listBookings, getAllRates } from "./store.mjs";
 import { nightsBetween } from "./dates.mjs";
+import { roundNightlyPriceCents } from "./money.mjs";
 
 // Pure and unit-testable on its own: which dates the owner has explicitly
 // blocked from /admin (personal use, maintenance, etc.), independent of
@@ -14,6 +15,25 @@ import { nightsBetween } from "./dates.mjs";
 // and /admin shows them as two distinct statuses.
 export function ownBlockedNightsFromRates(rates) {
   return Object.keys(rates || {}).filter((d) => rates[d]?.blocked);
+}
+
+// Pure and unit-testable on its own: a sparse {date: roundedPriceCents} map
+// for every date in `dates` that has a price set on `rates` — used by the
+// public availability endpoint to show a nightly price on the guest
+// calendar tile. Rounds with the exact same roundNightlyPriceCents() rule
+// applied inside calculateQuote() (see _lib/pricing.mjs and _lib/money.mjs),
+// on the same raw admin-entered rate, so the number shown on a tile can
+// never differ from what a booking for that night would actually charge.
+// Dates with no price at all are simply omitted (mirrors the noPriceNights
+// list the same caller builds alongside this).
+export function buildPricesByDate(rates, dates) {
+  const out = {};
+  const safeRates = rates || {};
+  for (const d of dates) {
+    const raw = safeRates[d] && safeRates[d].priceCents;
+    if (raw != null) out[d] = roundNightlyPriceCents(raw);
+  }
+  return out;
 }
 
 // A request's *effective* status accounts for expiry even before the

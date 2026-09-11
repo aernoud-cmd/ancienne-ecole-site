@@ -8,7 +8,7 @@
 // from the CURRENT settings/rates — except for an existing booking, whose
 // stored quote (see book.mjs) is never recomputed once created.
 import { nightsBetween, isoWeekday, addDaysISO } from "./dates.mjs";
-import { percentOfCents, roundCents } from "./money.mjs";
+import { percentOfCents, roundCents, roundNightlyPriceCents } from "./money.mjs";
 
 export class QuoteError extends Error {
   constructor(code, details = {}) {
@@ -136,6 +136,21 @@ export function calculateQuote({ checkin, checkout, adults, children }, settings
   // 1. Base rental cost — sum of that night's rate for every night booked.
   // A night with no price set is simply not bookable — never €0, never a
   // silent fallback to some other night's price.
+  //
+  // The raw admin-entered rate is rounded to the nearest €5 exactly HERE —
+  // the one and only place a night's rate is read into a quote — via
+  // roundNightlyPriceCents() (see _lib/money.mjs for the exact rule and
+  // examples). Every guest-facing number downstream (rentalSubtotalCents,
+  // the long-stay discount, the tourist-tax base, the itemized perNight
+  // breakdown, and — via book.mjs's frozen quote — the actual Stripe
+  // Checkout amount) is derived from this already-rounded value, so nothing
+  // downstream can ever drift from it or apply its own separate rounding.
+  // The public availability endpoint's per-date price (shown on the guest
+  // calendar tile) uses the exact same helper on the exact same raw rate —
+  // see _lib/availability.mjs buildPricesByDate() — so the tile price and
+  // the actually-charged price are always identical. /admin itself still
+  // shows and edits the RAW rate the owner typed in (e.g. €321,43) — that is
+  // deliberate, not a bug: only the guest-facing amount is rounded.
   const perNight = [];
   let needsSaturdayTurnover = false;
   for (const date of nights) {
@@ -147,10 +162,12 @@ export function calculateQuote({ checkin, checkout, adults, children }, settings
     if (rate?.blocked) {
       throw new QuoteError("DATE_BLOCKED", { date });
     }
+    // Validated against the RAW rate (never €0/negative/missing) — the
+    // rounding below only ever applies to an already-valid positive price.
     if (!rate || !Number.isFinite(rate.priceCents) || rate.priceCents <= 0) {
       throw new QuoteError("RATE_MISSING", { date });
     }
-    perNight.push({ date, priceCents: rate.priceCents });
+    perNight.push({ date, priceCents: roundNightlyPriceCents(rate.priceCents) });
     // An explicit `saturdayTurnover` flag (set per night from /admin, on the
     // exact high-season window — NOT inferred from a 7-night minimum, which
     // could legitimately apply elsewhere without requiring Saturday-only

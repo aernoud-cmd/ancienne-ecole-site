@@ -5,7 +5,7 @@
 // holds its dates until it's declined or expires — see README), so
 // double-booking is never possible either way.
 import { getPricingSettings, getAllRates } from "./_lib/store.mjs";
-import { computeAvailability } from "./_lib/availability.mjs";
+import { computeAvailability, buildPricesByDate } from "./_lib/availability.mjs";
 import { datesInclusive } from "./_lib/dates.mjs";
 
 // How far ahead we tell the guest calendar about "no price set yet" /
@@ -50,6 +50,16 @@ export default async () => {
   // SATURDAY_TURNOVER_REQUIRED error from quote/book.
   const saturdayTurnoverNights = allDates.filter((d) => rates[d]?.saturdayTurnover);
 
+  // Nightly price per date, already rounded to the nearest €5 exactly the
+  // way calculateQuote() rounds it (see _lib/availability.mjs
+  // buildPricesByDate() and _lib/money.mjs roundNightlyPriceCents()) — shown
+  // directly on the guest calendar tile. This reveals nothing a guest
+  // couldn't already see by picking that date and requesting a live quote;
+  // it's the same number, just shown before the click. Only dates that
+  // actually have a price are included (a strict subset of allDates minus
+  // noPriceNights).
+  const pricesByDate = buildPricesByDate(rates, allDates);
+
   return new Response(
     JSON.stringify({
       busyNights: Array.from(busyNights).sort(),
@@ -63,6 +73,7 @@ export default async () => {
       noPriceNights,
       minNightsByDate,
       saturdayTurnoverNights,
+      pricesByDate,
       capacity: settings.capacity,
       currency: settings.currency,
       defaultMinNights: settings.defaultMinNights,
