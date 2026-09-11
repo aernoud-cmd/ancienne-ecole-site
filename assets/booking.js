@@ -79,10 +79,19 @@
       dayAvailable: "available",
       dayPast: "past date",
       dayNoPrice: "not yet open for booking",
+      // Shown on a would-be CHECK-OUT date once an arrival is already
+      // selected, when that specific date would not actually be accepted
+      // (see meetsMinNights()/isValidCheckout() in renderCalendar() — these
+      // mirror calculateQuote()'s own MIN_NIGHTS_NOT_MET/SATURDAY_TURNOVER_
+      // REQUIRED checks exactly, so a date that looks disabled here is a
+      // date the server would reject too, and vice versa).
+      checkoutMinStay: (n) => `not a valid check-out — this arrival requires at least ${n} nights`,
+      checkoutSaturdayOnly: "not a valid check-out — high season requires both check-in and check-out on a Saturday",
+      checkoutRangeBlocked: "not a valid check-out — a night in between is already booked or held",
       minStaySuffix: (n) => `, minimum stay if arriving here: ${n} nights`,
       minStayNote: (n) => `Minimum stay: ${n} nights (some periods require longer — the calendar and price will tell you).`,
       tilePriceSuffix: (amount) => `, ${amount} per night`,
-      tileCaption: "Every available day shows its nightly price and minimum stay (e.g. “5n” = 5 nights minimum).",
+      tileCaption: "Every available day shows its nightly price in euros (€) and minimum stay (e.g. “5n” = 5 nights minimum).",
       termsHeading: "Booking terms, cancellation & deposit",
       termsBody:
         "You are booking directly with L'Ancienne École for the exact dates and price shown above. Payment is taken securely via Stripe on the next screen; your booking is confirmed the instant that payment succeeds — this is a real, immediate booking, not a request. The tourist tax is a local government charge collected on the owner's behalf. The refundable security deposit is charged together with the rest, and returned by bank transfer after your stay once the house has been checked for damage. To change or cancel a paid booking, please contact us directly — we'll confirm the terms that apply to your situation individually.",
@@ -146,10 +155,13 @@
       dayAvailable: "disponible",
       dayPast: "date passée",
       dayNoPrice: "pas encore ouvert à la réservation",
+      checkoutMinStay: (n) => `départ non valable — cette arrivée exige au moins ${n} nuits`,
+      checkoutSaturdayOnly: "départ non valable — la haute saison exige une arrivée ET un départ le samedi",
+      checkoutRangeBlocked: "départ non valable — une nuit entre les deux est déjà réservée ou retenue",
       minStaySuffix: (n) => `, séjour minimum en arrivant ici : ${n} nuits`,
       minStayNote: (n) => `Séjour minimum : ${n} nuits (certaines périodes exigent plus — le calendrier et le prix vous le préciseront).`,
       tilePriceSuffix: (amount) => `, ${amount} par nuit`,
-      tileCaption: "Chaque jour disponible indique son prix par nuit et le séjour minimum (par ex. « 5n » = minimum 5 nuits).",
+      tileCaption: "Chaque jour disponible indique son prix par nuit en euros (€) et le séjour minimum (par ex. « 5n » = minimum 5 nuits).",
       termsHeading: "Conditions de réservation, annulation et caution",
       termsBody:
         "Vous réservez directement auprès de L'Ancienne École pour les dates et le prix exacts indiqués ci-dessus. Le paiement s'effectue en toute sécurité via Stripe à l'écran suivant ; votre réservation est confirmée dès que ce paiement aboutit — il s'agit d'une réservation réelle et immédiate, pas d'une demande. La taxe de séjour est une taxe locale collectée pour le compte de la commune. La caution remboursable est débitée en même temps que le reste, puis restituée par virement après votre séjour une fois la maison vérifiée. Pour modifier ou annuler une réservation payée, merci de nous contacter directement — nous confirmerons avec vous les conditions applicables à votre situation.",
@@ -213,10 +225,13 @@
       dayAvailable: "beschikbaar",
       dayPast: "verstreken datum",
       dayNoPrice: "nog niet open voor boeking",
+      checkoutMinStay: (n) => `geen geldige vertrekdatum — dit verblijf vereist minimaal ${n} nachten`,
+      checkoutSaturdayOnly: "geen geldige vertrekdatum — hoogseizoen vereist aankomst én vertrek op zaterdag",
+      checkoutRangeBlocked: "geen geldige vertrekdatum — een nacht daartussen is al geboekt of vastgehouden",
       minStaySuffix: (n) => `, minimumverblijf bij aankomst hier: ${n} nachten`,
       minStayNote: (n) => `Minimumverblijf: ${n} nachten (voor sommige periodes geldt een langer minimum — de kalender en de prijs geven dit aan).`,
       tilePriceSuffix: (amount) => `, ${amount} per nacht`,
-      tileCaption: "Elke beschikbare dag toont de prijs per nacht en het minimumverblijf (bijv. “5n” = minimum 5 nachten).",
+      tileCaption: "Elke beschikbare dag toont de prijs per nacht in euro's (€) en het minimumverblijf (bijv. “5n” = minimum 5 nachten).",
       termsHeading: "Boekingsvoorwaarden, annulering & borg",
       termsBody:
         "Je boekt rechtstreeks bij L'Ancienne École voor de exacte data en prijs hierboven. Betalen gebeurt veilig via Stripe op het volgende scherm; je boeking is bevestigd zodra die betaling lukt — dit is een echte, directe boeking, geen aanvraag. De toeristenbelasting is een gemeentelijke heffing die namens de gemeente wordt geïnd. De terugbetaalbare borg wordt samen met de rest afgerekend en na je verblijf per bankoverschrijving terugbetaald zodra het huis is gecontroleerd. Wil je een betaalde boeking wijzigen of annuleren, neem dan rechtstreeks contact met ons op — we bevestigen dan samen met jou welke voorwaarden voor jouw situatie gelden.",
@@ -302,6 +317,50 @@
 
   function rangeIsFree(startISO, endISO) {
     return nightsInRange(startISO, endISO).every((n) => !busyNights.has(n) && !noPriceNights.has(n));
+  }
+
+  function addDaysISO(dateISO, delta) {
+    const d = new Date(dateISO + "T00:00:00Z");
+    d.setUTCDate(d.getUTCDate() + delta);
+    return d.toISOString().slice(0, 10);
+  }
+
+  // Mirrors calculateQuote()'s own MIN_NIGHTS_NOT_MET check AND its narrow
+  // "exactly 4 free nights between two bookings" exception
+  // (fourNightGapException() in _lib/pricing.mjs) exactly — same effective
+  // per-arrival minimum (a per-date override in minNightsByDate, else the
+  // site-wide defaultMinNights), same four conditions for the exception.
+  // This is what a candidate check-out date is actually judged against, so
+  // the calendar can never show as "clickable/available" a stay length the
+  // server would reject with MIN_NIGHTS_NOT_MET, and never disables one the
+  // four-night-gap exception would in fact allow.
+  function meetsMinNights(startISO, endISO) {
+    const nights = nightsInRange(startISO, endISO);
+    const arrivalMinNights = minNightsByDate[startISO] ?? defaultMinNights;
+    if (nights.length >= arrivalMinNights) return true;
+    if (nights.length !== 4) return false;
+    if (arrivalMinNights !== 5) return false;
+    if (nights.some((d) => saturdayTurnoverNights.has(d))) return false;
+    const prevNight = addDaysISO(startISO, -1);
+    if (!busyNights.has(prevNight)) return false;
+    if (!busyNights.has(endISO)) return false;
+    return true;
+  }
+
+  // The single source of truth for "is dateISO a genuinely acceptable
+  // check-out completing the stay that starts at startISO" — every night in
+  // between must be free (rangeIsFree), any high-season night the stay
+  // touches must be bracketed by a Saturday check-in AND check-out
+  // (rangeNeedsSaturdayTurnover), and the resulting length must satisfy
+  // meetsMinNights() above. Used both to decide what the calendar shows as
+  // clickable (renderCalendar()) and, as defense in depth, inside pickDate()
+  // itself — so a click can never complete a selection the calendar's own
+  // rendering didn't actually offer as valid.
+  function isValidCheckout(startISO, endISO) {
+    if (!(endISO > startISO)) return false;
+    if (!rangeIsFree(startISO, endISO)) return false;
+    if (rangeNeedsSaturdayTurnover(startISO, endISO) && !(isSaturdayISO(startISO) && isSaturdayISO(endISO))) return false;
+    return meetsMinNights(startISO, endISO);
   }
 
   // True when ANY night actually stayed between startISO (inclusive) and
@@ -605,15 +664,34 @@
       // reusing it here is what makes the click-gate match the logic that
       // already validates the actual selection.
       const isCandidateCheckout = !isPast && selStart && !selEnd && dateISO > selStart;
-      // If any night the stay would actually cover requires Saturday
-      // turnover (high season — see rangeNeedsSaturdayTurnover above), both
-      // ends of the stay must be Saturdays, exactly like calculateQuote()'s
-      // own SATURDAY_TURNOVER_REQUIRED check. Outside high season (or for a
-      // stay that never reaches a flagged night) this is simply true and
-      // changes nothing.
-      const checkoutSpansHighSeason = isCandidateCheckout && rangeNeedsSaturdayTurnover(selStart, dateISO);
-      const validAsCheckout = isCandidateCheckout && rangeIsFree(selStart, dateISO) &&
-        (!checkoutSpansHighSeason || (isSaturdayISO(selStart) && isSaturdayISO(dateISO)));
+      // isValidCheckout() (see above) is the single source of truth: every
+      // interior night free, both ends Saturday if the stay reaches a
+      // high-season night, AND the stay is long enough (the site's ordinary
+      // minimum-stay rule, or the narrow four-night-gap exception) — exactly
+      // what calculateQuote() itself would accept or reject. A checkout
+      // candidate that fails ANY of these must never look the same as one
+      // that passes (see invalidCheckoutCandidate below) — this is what
+      // fixes "picking an arrival left almost every later day looking
+      // exactly as available as a real valid check-out".
+      const validAsCheckout = isCandidateCheckout && isValidCheckout(selStart, dateISO);
+      // A checkout candidate that ISN'T already going to render with its own
+      // dark/disabled look for an unrelated reason (booked, held, an
+      // owner-block) but still fails isValidCheckout() above — because a
+      // night in between is unavailable, the stay doesn't reach the
+      // required minimum length, or high season demands Saturday-to-
+      // Saturday and this pair doesn't qualify — needs that SAME dark,
+      // non-clickable treatment. Reason precedence mirrors how a guest would
+      // actually diagnose it: an unavailable night in between first, then
+      // the Saturday-turnover rule, then plain minimum-stay.
+      const invalidCheckoutCandidate =
+        isCandidateCheckout && !isOwnBlocked && !isBusy && !isPending && !isNoPrice && !validAsCheckout;
+      let invalidCheckoutReason = "";
+      if (invalidCheckoutCandidate) {
+        if (!rangeIsFree(selStart, dateISO)) invalidCheckoutReason = t.checkoutRangeBlocked;
+        else if (rangeNeedsSaturdayTurnover(selStart, dateISO) && !(isSaturdayISO(selStart) && isSaturdayISO(dateISO)))
+          invalidCheckoutReason = t.checkoutSaturdayOnly;
+        else invalidCheckoutReason = t.checkoutMinStay(minNightsByDate[selStart] ?? defaultMinNights);
+      }
 
       // Whether this cell is being considered as a brand-new ARRIVAL pick
       // (no selection yet, or restarting one) rather than as the checkout
@@ -684,6 +762,16 @@
         // date itself, only with starting a stay on it.
         style = "color: var(--text-dim); border: 1px dashed var(--gold-soft); opacity: 0.6;";
         statusWord = t.dayHighSeasonWeekday;
+      } else if (invalidCheckoutCandidate) {
+        // Same dark/disabled treatment as a booked or held night — this
+        // date IS otherwise free and priced, but given the arrival already
+        // picked, it isn't a check-out the server would accept either (see
+        // isValidCheckout()/meetsMinNights() above). Without this branch
+        // these dates fell through to the ordinary "available" look below,
+        // which is exactly the reported bug: after picking an arrival,
+        // almost every later day still looked identically bookable.
+        style = "color: var(--text-dim); border: 1px dashed var(--line-strong); opacity: 0.5; text-decoration: line-through;";
+        statusWord = t.dayUnavailable;
       } else if (inSelectedRange) {
         style = "background: var(--gold); color: #1a1408; font-weight: 600; cursor:pointer;";
       } else if (highSeasonSaturdayArrival) {
@@ -694,15 +782,23 @@
       }
 
       // Clickable as a NEW start (no active selection, or completing one
-      // already finished) requires a genuinely free arrival night that
-      // isn't blocked by the high-season Saturday-only rule above. Clickable
-      // as the CHECKOUT that completes an in-progress selection only needs
-      // validAsCheckout (every interior night free, and both ends Saturday
-      // if the stay reaches a high-season night) — the departure date
-      // itself, and whether it happens to have a price, is irrelevant (the
-      // guest never stays that night). This is the fix for "can't select
-      // checkout on the day the next guest arrives, or on an unpriced date".
-      const clickable = !isPast && (startingFresh ? (!isBusy && !isNoPrice && !highSeasonArrivalBlocked) : validAsCheckout);
+      // already finished) requires a genuinely free, not-owner-blocked
+      // arrival night that isn't blocked by the high-season Saturday-only
+      // rule above. Clickable as the CHECKOUT that completes an in-progress
+      // selection only needs validAsCheckout (every interior night free,
+      // both ends Saturday if the stay reaches a high-season night, AND the
+      // resulting length actually meets the minimum-stay rule or its
+      // four-night-gap exception) — the departure date itself, and whether
+      // it happens to have a price, is irrelevant (the guest never stays
+      // that night). This is the fix for "can't select checkout on the day
+      // the next guest arrives, or on an unpriced date" — and, together with
+      // validAsCheckout's own minimum-stay check above, for "almost every
+      // day still looked clickable/available right after picking an
+      // arrival, even ones far too short or on the wrong side of the
+      // Saturday-turnover rule". `!isOwnBlocked` was missing here before:
+      // an owner-blocked date already rendered with the dark "unavailable"
+      // look, but could still be picked as a fresh arrival start.
+      const clickable = !isPast && (startingFresh ? (!isBusy && !isOwnBlocked && !isNoPrice && !highSeasonArrivalBlocked) : validAsCheckout);
       const dateObj = new Date(dateISO + "T00:00:00Z");
       const weekday = WEEKDAY_ABBR[lang][(dateObj.getUTCDay() + 6) % 7];
       const edgeSuffix = isRangeEdge
@@ -727,7 +823,13 @@
       // carry.
       const priceSuffix = hasTilePrice ? t.tilePriceSuffix(fmtMoneyCentsCompact(tilePriceCents, calendarCurrency)) : "";
       const minSuffix = hasTilePrice ? t.minStaySuffix(effectiveMinNights) : "";
-      const dayLabel = `${weekday} ${d} ${MONTH_NAMES[lang][viewMonth]}, ${statusWord}${edgeSuffix}${priceSuffix}${minSuffix}`;
+      // Spoken/announced explicitly for an invalid checkout candidate (see
+      // invalidCheckoutCandidate above) — a screen-reader user gets the same
+      // "why can't I pick this" answer a sighted guest sees from the dark
+      // tile, instead of just hearing "available" while it's actually
+      // aria-disabled.
+      const checkoutReasonSuffix = invalidCheckoutReason ? `, ${invalidCheckoutReason}` : "";
+      const dayLabel = `${weekday} ${d} ${MONTH_NAMES[lang][viewMonth]}, ${statusWord}${edgeSuffix}${checkoutReasonSuffix}${priceSuffix}${minSuffix}`;
       const titleBits = [];
       if (priceSuffix) titleBits.push(priceSuffix.replace(/^, /, ""));
       if (minSuffix) titleBits.push(minSuffix.replace(/^, /, ""));
@@ -801,7 +903,13 @@
       selStart = dateISO;
       selEnd = null;
     } else {
-      if (rangeIsFree(selStart, dateISO)) {
+      // Defense in depth: mirrors exactly what renderCalendar() already
+      // required for this date's tile to be clickable at all (see
+      // isValidCheckout() above — range-free, Saturday-turnover, AND
+      // minimum-stay, not just range-free) — so even a stale render or a
+      // race between two rapid clicks can never complete a selection the
+      // calendar didn't actually offer as valid.
+      if (isValidCheckout(selStart, dateISO)) {
         selEnd = dateISO;
       } else {
         alert(STRINGS[lang].rangeUnavailable);

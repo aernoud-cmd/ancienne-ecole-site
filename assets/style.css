@@ -143,7 +143,27 @@ h1, h2, h3 { font-family: 'Cormorant Garamond', serif; font-weight: 500; margin:
   .thumbs img { height: 64px; }
   h1 { font-size: 52px !important; }
   h2 { font-size: 32px !important; }
-  .host-row, .history-row, .booking-value-row, .footer-row, .booking-cols { flex-direction: column !important; align-items: flex-start !important; }
+  .host-row, .history-row, .booking-value-row, .footer-row { flex-direction: column !important; align-items: flex-start !important; }
+  /* .booking-cols (the reserve-page calendar/form pair) is deliberately
+     NOT in the flex-start group above: this is the confirmed, measured
+     root cause of the real-device calendar clipping bug (a flex item in
+     flex-direction:column with align-items:flex-start sizes to its own
+     CONTENT's preferred width instead of stretching to fill the stacked
+     column — so the calendar column rendered wider than its own parent,
+     independent of the grid/header fixes elsewhere in this file, which
+     were real but secondary contributors, not the main cause). stretch
+     is what makes each stacked column actually fill the available width
+     it was already meant to have. */
+  /* flex-wrap: nowrap is just as load-bearing as align-items: stretch
+     above — measured directly in a real narrow (~284px) same-origin test
+     iframe: with the inline flex-wrap:wrap left in place, a
+     flex-direction:column container with no explicit height gives each
+     item (the calendar column, then the form) its OWN cross-axis "line"
+     sized to that item's own content width, instead of one single
+     full-width stacked line — which is what actually produced the ~32px
+     overflow (283px item in a 252px container), not the grid/header
+     issues alone. nowrap forces the intended single vertical stack. */
+  .booking-cols { flex-direction: column !important; align-items: stretch !important; flex-wrap: nowrap !important; }
   .booking-value-row .value-props { flex-wrap: wrap; gap: 32px !important; }
   .footer-row .footer-links { gap: 48px !important; flex-wrap: wrap; }
 }
