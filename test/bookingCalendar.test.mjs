@@ -93,7 +93,7 @@ function buildContext(availabilityPayload) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
     }
     if (String(url).includes("book")) {
-      return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, checkoutUrl: "https://stripe.example/test-session" }) });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true, checkoutUrl: "https://checkout.stripe.com/c/pay/test-session" }) });
     }
     return Promise.reject(new Error("unexpected fetch: " + url));
   }
@@ -578,7 +578,7 @@ test("submit: the same booking proceeds to Stripe checkout once the terms checkb
   await context.window.AE_BOOKING.submit(fakeEvent);
   assert.equal(
     context.window.location.href,
-    "https://stripe.example/test-session",
+    "https://checkout.stripe.com/c/pay/test-session",
     "a checked terms box and a complete address must let the booking proceed to the Stripe checkout redirect"
   );
 });
@@ -631,7 +631,7 @@ test("submit: a country without postal codes (e.g. Hong Kong) does not block sub
   await context.window.AE_BOOKING.submit(fakeEvent);
   assert.equal(
     context.window.location.href,
-    "https://stripe.example/test-session",
+    "https://checkout.stripe.com/c/pay/test-session",
     "a country without postal codes must not require one to proceed"
   );
 });
@@ -783,4 +783,24 @@ test("calendar: a booked/blocked night inside the requested range makes every ch
   context.window.AE_BOOKING.pickDate("2027-06-18");
   const cell25 = cellFor(documentStub, "2027-06-25");
   assert.ok(!isClickable(cell25), `expected 2027-06-25 NOT clickable — 2027-06-22 is booked in between and this isn't the narrow 4-night-gap case\n${cell25}`);
+});
+
+
+test("hosted Checkout leaves the WordPress iframe via parent with reusable fallback link", async () => {
+  const { context, documentStub } = buildContext(buildAvailabilityPayload(buildRates()));
+  const messages = [];
+  context.window.parent = { postMessage: (...args) => messages.push(args) };
+  await init(context, documentStub);
+  context.window.AE_BOOKING.pickDate("2027-06-18");
+  context.window.AE_BOOKING.pickDate("2027-06-23");
+  for (const [id, value] of Object.entries({"guest-name":"Test Guest", "guest-email":"guest@example.com", "guest-address-line1":"1 High Street", "guest-address-city":"London", "guest-address-postal":"SW1A 1AA", "guest-address-country":"GB"})) documentStub.getElementById(id).value=value;
+  documentStub.getElementById("terms-accept").checked=true;
+  await context.window.AE_BOOKING.submit({preventDefault(){}});
+  assert.equal(context.window.location.href,"http://test/", "never navigate iframe to hosted Stripe");
+  assert.equal(messages.length,1);
+  assert.equal(messages[0][1],"https://ancienne-ecole.rent");
+  assert.equal(messages[0][0].checkoutUrl,"https://checkout.stripe.com/c/pay/test-session");
+  const link=documentStub.getElementById("ae-booking-status").children.at(-1);
+  assert.equal(link.target,"_top");
+  assert.equal(link.href,messages[0][0].checkoutUrl);
 });

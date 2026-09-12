@@ -329,7 +329,7 @@
       nightsLabel: (n) => `${n} night${n === 1 ? "" : "s"} selected`,
       submit: "Send booking request",
       errorGeneric: "Something went wrong sending your request. Please try again, or reach out directly.",
-      connectionTimeout: "This is taking too long to respond. Nothing was booked or charged — please try again in a moment, or reach out directly if it keeps happening.",
+      connectionTimeout: "We could not confirm whether the payment page was created. Your dates may be temporarily held. Please contact Aernoud if trying again reports that the dates are unavailable.",
       pickBothDates: "Please select both a check-in and a check-out date on the calendar.",
       fillNameEmail: "Please fill in your name and a valid email address.",
       rangeUnavailable: "Some of the nights in that range are already booked or requested. Please pick different dates.",
@@ -435,7 +435,7 @@
       nightsLabel: (n) => `${n} nuit${n === 1 ? "" : "s"} sélectionnée${n === 1 ? "" : "s"}`,
       submit: "Envoyer la demande de réservation",
       errorGeneric: "Une erreur est survenue lors de l'envoi. Merci de réessayer, ou contactez-nous directement.",
-      connectionTimeout: "La réponse prend trop de temps. Rien n'a été réservé ni débité — merci de réessayer dans un instant, ou de nous contacter directement si cela persiste.",
+      connectionTimeout: "Nous n’avons pas pu confirmer la création de la page de paiement. Vos dates peuvent être temporairement retenues. Contactez Aernoud si une nouvelle tentative indique qu’elles sont indisponibles.",
       pickBothDates: "Merci de sélectionner une date d'arrivée et une date de départ sur le calendrier.",
       fillNameEmail: "Merci de renseigner votre nom et une adresse e-mail valide.",
       rangeUnavailable: "Certaines nuits de cette période sont déjà réservées ou en demande. Merci de choisir d'autres dates.",
@@ -524,7 +524,7 @@
       nightsLabel: (n) => `${n} nacht${n === 1 ? "" : "en"} geselecteerd`,
       submit: "Boekingsaanvraag versturen",
       errorGeneric: "Er ging iets mis bij het versturen. Probeer het opnieuw, of neem rechtstreeks contact op.",
-      connectionTimeout: "Dit duurt te lang om te reageren. Er is niets geboekt of afgeschreven — probeer het zo opnieuw, of neem rechtstreeks contact op als dit blijft gebeuren.",
+      connectionTimeout: "We konden niet bevestigen of de betaalpagina is aangemaakt. Je datums kunnen tijdelijk vastgehouden zijn. Neem contact op met Aernoud als een nieuwe poging meldt dat de datums niet beschikbaar zijn.",
       pickBothDates: "Selecteer zowel een aankomst- als een vertrekdatum in de kalender.",
       fillNameEmail: "Vul je naam en een geldig e-mailadres in.",
       rangeUnavailable: "Sommige nachten in die periode zijn al geboekt of aangevraagd. Kies andere data.",
@@ -1735,17 +1735,8 @@
     btn.textContent = t.redirecting;
     showStatus("", false);
 
-    // A network stall (not a fast HTTP error — a request that simply never
-    // resolves) used to leave the button stuck on "Redirecting…" forever,
-    // with no error shown and no way to retry short of reloading the page —
-    // exactly the "blijft hangen" symptom reported live. This hard-aborts
-    // the request after 20s so the catch block below always runs, the
-    // spinner always ends, and the guest always gets a concrete message and
-    // a working retry. Aborting here never risks a double booking/charge:
-    // book.mjs hasn't created anything yet if this fires (it only claims
-    // nights and saves the booking well within that window), and if it
-    // somehow did complete just as this fires, re-submitting the same
-    // dates simply re-runs book.mjs's own availability re-check.
+    // Stop waiting indefinitely, but do not assume aborting the browser
+    // request cancelled server-side work: a temporary hold may already exist.
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 20000);
 
@@ -1794,16 +1785,11 @@
       // happens there, never on this site. The booking is only ever
       // confirmed later, via stripe-webhook.mjs, once Stripe verifies the
       // payment actually succeeded; this redirect itself confirms nothing.
-      window.location.href = data.checkoutUrl;
+      openHostedCheckout(data.checkoutUrl);
       return false;
     } catch (e) {
-      // Whatever failed, ALWAYS end the "Redirecting…" spinner state and
-      // show a concrete, understandable message — never a silently stuck
-      // button — and never touch selStart/selEnd/night-claim state here, so
-      // a guest can immediately retry without any risk of a double booking
-      // or double charge (the retry simply re-submits the same unclaimed
-      // request; book.mjs's own re-check of availability is what actually
-      // guards against a double claim either way).
+      // Restore a usable form. A timed-out request can have created a hold;
+      // it must never be reported as proof that nothing happened server-side.
       if (e.isTermsError) {
         showTermsNote(e.message || t.termsRequired, true);
         showStatus("", false);
@@ -1821,6 +1807,33 @@
       clearTimeout(timeoutId);
     }
     return false;
+  }
+
+  function openHostedCheckout(checkoutUrl) {
+    const url = new URL(checkoutUrl);
+    if (url.origin !== "https://checkout.stripe.com" || url.username || url.password) {
+      throw new Error(STRINGS[lang].errorGeneric);
+    }
+    if (!window.parent || window.parent === window) {
+      window.location.href = url.href;
+      return;
+    }
+    // Hosted Checkout must leave the iframe. Ask the trusted WordPress
+    // parent to navigate itself; browsers can block cross-origin top-navigation
+    // after the asynchronous request has consumed the original user gesture.
+    const status = document.getElementById("ae-booking-status");
+    if (status) {
+      status.textContent = "";
+      const link = document.createElement("a");
+      link.href = url.href;
+      link.target = "_top";
+      link.rel = "noopener";
+      link.textContent = STRINGS[lang].submitPay;
+      status.appendChild(link);
+    }
+    // A real link remains available if the parent listener is absent or
+    // navigation is blocked; following it reuses the same Stripe session.
+    window.parent.postMessage({ aeSource: "ae-booking-embed", type: "ae-checkout", checkoutUrl: url.href }, "https://ancienne-ecole.rent");
   }
 
   function showStatus(msg, isError) {

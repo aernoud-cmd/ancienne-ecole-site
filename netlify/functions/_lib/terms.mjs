@@ -5,4 +5,4 @@
 // (booking.termsVersion), so a later bump never silently rewrites what an
 // existing guest is considered to have agreed to (see README/spec section
 // 10: "capture and store which terms version the guest accepted").
-export const CURRENT_TERMS_VERSION = "2026-09-10";
+export const CURRENT_TERMS_VERSION = "2026-09-12";
