@@ -9,6 +9,7 @@
 
 import { Resend } from "resend";
 import twilio from "twilio";
+import { countryName } from "./countries.mjs";
 
 export function siteBaseUrl() {
   // Netlify sets URL to the site's primary production URL at runtime.
@@ -86,10 +87,68 @@ function quoteTable(q, lang = "en") {
 }
 
 const SUMMARY_LABELS = {
-  en: { checkin: "Check-in", checkout: "Check-out", guests: "Guests" },
-  fr: { checkin: "Arrivée", checkout: "Départ", guests: "Voyageurs" },
-  nl: { checkin: "Aankomst", checkout: "Vertrek", guests: "Gasten" },
+  en: {
+    name: "Booked by",
+    reference: "Booking reference",
+    checkin: "Check-in",
+    checkinTime: "from 16:00",
+    checkout: "Check-out",
+    checkoutTime: "by 10:00 (French local time)",
+    nights: "Nights",
+    nightsValue: (n) => `${n} night${n === 1 ? "" : "s"}`,
+    guests: "Guests",
+    address: "Address",
+  },
+  fr: {
+    name: "Réservé par",
+    reference: "Référence de réservation",
+    checkin: "Arrivée",
+    checkinTime: "à partir de 16h00",
+    checkout: "Départ",
+    checkoutTime: "au plus tard à 10h00 (heure locale française)",
+    nights: "Nombre de nuits",
+    nightsValue: (n) => `${n} nuit${n === 1 ? "" : "s"}`,
+    guests: "Voyageurs",
+    address: "Adresse",
+  },
+  nl: {
+    name: "Naam hoofdboeker",
+    reference: "Boekingsreferentie",
+    checkin: "Aankomst",
+    checkinTime: "vanaf 16.00 uur",
+    checkout: "Vertrek",
+    checkoutTime: "uiterlijk 10.00 uur (lokale tijd Frankrijk)",
+    nights: "Aantal nachten",
+    nightsValue: (n) => `${n} nacht${n === 1 ? "" : "en"}`,
+    guests: "Gasten",
+    address: "Adres",
+  },
 };
+
+// Full weekday/month names, verbatim from assets/booking.js's own
+// formatLongDate() (same guest-facing wording as the reserve pages
+// themselves) — duplicated here rather than imported since that file is a
+// browser IIFE, not an ES module. Keep in sync if that wording ever changes.
+const WEEKDAY_FULL = {
+  en: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+  fr: ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"],
+  nl: ["maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag", "zondag"],
+};
+const MONTH_FULL = {
+  en: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
+  fr: ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"],
+  nl: ["januari", "februari", "maart", "april", "mei", "juni", "juli", "augustus", "september", "oktober", "november", "december"],
+};
+
+function formatLongDate(dateISO, lang) {
+  if (!dateISO) return "";
+  const d = new Date(`${dateISO}T00:00:00Z`);
+  const weekday = WEEKDAY_FULL[lang][(d.getUTCDay() + 6) % 7];
+  const day = d.getUTCDate();
+  const month = MONTH_FULL[lang][d.getUTCMonth()];
+  const year = d.getUTCFullYear();
+  return `${weekday} ${day} ${month} ${year}`;
+}
 
 function guestsLabel(b, lang) {
   const adultsWord = { en: "adult(s)", fr: "adulte(s)", nl: "volwassene(n)" }[lang] || "adult(s)";
@@ -97,16 +156,50 @@ function guestsLabel(b, lang) {
   return `${b.adults} ${adultsWord}${b.children ? ` + ${b.children} ${childrenWord}` : ""}`;
 }
 
-// Small "at a glance" summary (dates + guests) shown above the price
-// breakdown in the paid-confirmation email — separate from quoteTable()
-// above, which only covers the price lines.
+// Renders the main renter's address as a single HTML fragment (used inside
+// its own table row), in the given language. Returns "" when the booking
+// has no address at all — every booking made before this field existed —
+// so bookingSummaryTable() below simply omits the row rather than showing
+// an empty/broken one.
+function addressLines(b, lang) {
+  const a = b.address;
+  if (!a || !a.line1) return "";
+  const parts = [a.line1];
+  if (a.line2) parts.push(a.line2);
+  const cityLine = [a.postalCode, a.city].filter(Boolean).join(" ");
+  if (cityLine) parts.push(cityLine);
+  if (a.country) parts.push(countryName(a.country, lang));
+  return parts.map((p) => escapeHtml(p)).join("<br>");
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// Booking-summary table shown above the price breakdown in the
+// paid-confirmation email — a compact, mobile-readable label/value table
+// using only confirmed booking data (booking.js's own booking record, the
+// same object stripe-webhook.mjs already has once payment is verified):
+// main booker name, the booking's own id as its reference, fully-written
+// check-in/check-out dates with the standard arrival/departure times, the
+// number of nights, the guest count, and (when present — older bookings
+// made before this field existed simply don't have one) the main renter's
+// address. Nothing here is invented or derived beyond formatting — no new
+// fields, no changed amounts.
 export function bookingSummaryTable(b, lang = "en") {
   const t = SUMMARY_LABELS[lang] || SUMMARY_LABELS.en;
+  const row = (label, value) =>
+    `<tr><td style="padding:3px 16px 3px 0;color:#888;white-space:nowrap;vertical-align:top;">${label}</td><td style="padding:3px 0;word-break:break-word;">${value}</td></tr>`;
+  const address = addressLines(b, lang);
   return `
-    <table style="border-collapse:collapse; margin: 8px 0 4px; font-size: 13.5px;">
-      <tr><td style="padding:2px 16px 2px 0;color:#888;">${t.checkin}</td><td><b>${b.checkin}</b></td></tr>
-      <tr><td style="padding:2px 16px 2px 0;color:#888;">${t.checkout}</td><td><b>${b.checkout}</b></td></tr>
-      <tr><td style="padding:2px 16px 2px 0;color:#888;">${t.guests}</td><td>${guestsLabel(b, lang)}</td></tr>
+    <table style="border-collapse:collapse; margin: 8px 0 4px; font-size: 13.5px; width:100%; max-width:420px;">
+      ${row(t.name, escapeHtml(b.name))}
+      ${row(t.reference, `<span style="font-family:monospace; font-size:12px;">${escapeHtml(b.id)}</span>`)}
+      ${address ? row(t.address, address) : ""}
+      ${row(t.checkin, `<b>${formatLongDate(b.checkin, lang)}</b><br><span style="color:#888; font-size:12.5px;">${t.checkinTime}</span>`)}
+      ${row(t.checkout, `<b>${formatLongDate(b.checkout, lang)}</b><br><span style="color:#888; font-size:12.5px;">${t.checkoutTime}</span>`)}
+      ${row(t.nights, t.nightsValue(b.nights))}
+      ${row(t.guests, guestsLabel(b, lang))}
     </table>`;
 }
 

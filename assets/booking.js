@@ -27,12 +27,309 @@
     fr: ["lundi","mardi","mercredi","jeudi","vendredi","samedi","dimanche"],
     nl: ["maandag","dinsdag","woensdag","donderdag","vrijdag","zaterdag","zondag"],
   };
+  // Full ISO 3166-1 country list for the address form's country dropdown —
+  // generated from the "i18n-iso-countries" package's CLDR-derived English/
+  // French/Dutch names (a few overly formal official names shortened to
+  // their common form). This exact array is duplicated, verbatim, as
+  // COUNTRIES in netlify/functions/_lib/countries.mjs (this file is a plain
+  // browser script with no bundler, so it can't import that module) — keep
+  // both in sync if this list is ever regenerated. Format: [ISO alpha-2
+  // code, English name, French name, Dutch name].
+  const COUNTRIES = [
+  ["AD", "Andorra", "Andorre", "Andorra"],
+  ["AE", "United Arab Emirates", "Émirats Arabes Unis", "Verenigde Arabische Emiraten"],
+  ["AF", "Afghanistan", "Afghanistan", "Afghanistan"],
+  ["AG", "Antigua and Barbuda", "Antigua-et-Barbuda", "Antigua en Barbuda"],
+  ["AI", "Anguilla", "Anguilla", "Anguilla"],
+  ["AL", "Albania", "Albanie", "Albanië"],
+  ["AM", "Armenia", "Arménie", "Armenië"],
+  ["AO", "Angola", "Angola", "Angola"],
+  ["AQ", "Antarctica", "Antarctique", "Antarctica"],
+  ["AR", "Argentina", "Argentine", "Argentinië"],
+  ["AS", "American Samoa", "Samoa américaines", "Amerikaans-Samoa"],
+  ["AT", "Austria", "Autriche", "Oostenrijk"],
+  ["AU", "Australia", "Australie", "Australië"],
+  ["AW", "Aruba", "Aruba", "Aruba"],
+  ["AX", "Åland Islands", "Åland", "Åland"],
+  ["AZ", "Azerbaijan", "Azerbaïdjan", "Azerbeidzjan"],
+  ["BA", "Bosnia and Herzegovina", "Bosnie-Herzégovine", "Bosnië-Herzegovina"],
+  ["BB", "Barbados", "Barbade", "Barbados"],
+  ["BD", "Bangladesh", "Bangladesh", "Bangladesh"],
+  ["BE", "Belgium", "Belgique", "België"],
+  ["BF", "Burkina Faso", "Burkina Faso", "Burkina Faso"],
+  ["BG", "Bulgaria", "Bulgarie", "Bulgarije"],
+  ["BH", "Bahrain", "Bahreïn", "Bahrein"],
+  ["BI", "Burundi", "Burundi", "Burundi"],
+  ["BJ", "Benin", "Bénin", "Benin"],
+  ["BL", "Saint Barthélemy", "Saint-Barthélemy", "Saint Barthélemy"],
+  ["BM", "Bermuda", "Bermudes", "Bermuda"],
+  ["BN", "Brunei Darussalam", "Brunei Darussalam", "Brunei"],
+  ["BO", "Bolivia", "Bolivie", "Bolivië"],
+  ["BQ", "Bonaire, Sint Eustatius and Saba", "Bonaire, Saint-Eustache et Saba", "Bonaire, Sint Eustatius en Saba"],
+  ["BR", "Brazil", "Brésil", "Brazilië"],
+  ["BS", "Bahamas", "Bahamas", "Bahama's"],
+  ["BT", "Bhutan", "Bhoutan", "Bhutan"],
+  ["BV", "Bouvet Island", "Île Bouvet", "Bouvet Eiland"],
+  ["BW", "Botswana", "Botswana", "Botswana"],
+  ["BY", "Belarus", "Biélorussie", "Wit-Rusland"],
+  ["BZ", "Belize", "Belize", "Belize"],
+  ["CA", "Canada", "Canada", "Canada"],
+  ["CC", "Cocos (Keeling) Islands", "Îles Cocos", "Cocoseilanden"],
+  ["CD", "Democratic Republic of the Congo", "République démocratique du Congo", "Congo-Kinshasa"],
+  ["CF", "Central African Republic", "République Centrafricaine", "Centraal-Afrikaanse Republiek"],
+  ["CG", "Republic of the Congo", "République du Congo", "Congo-Brazzaville"],
+  ["CH", "Switzerland", "Suisse", "Zwitserland"],
+  ["CI", "Ivory Coast", "Côte-d'Ivoire", "Ivoorkust"],
+  ["CK", "Cook Islands", "Îles Cook", "Cookeilanden"],
+  ["CL", "Chile", "Chili", "Chili"],
+  ["CM", "Cameroon", "Cameroun", "Kameroen"],
+  ["CN", "People's Republic of China", "Chine", "China"],
+  ["CO", "Colombia", "Colombie", "Colombia"],
+  ["CR", "Costa Rica", "Costa Rica", "Costa Rica"],
+  ["CU", "Cuba", "Cuba", "Cuba"],
+  ["CV", "Cape Verde", "Cap-Vert", "Kaapverdië"],
+  ["CW", "Curaçao", "Curaçao", "Curaçao"],
+  ["CX", "Christmas Island", "Île Christmas", "Kersteiland"],
+  ["CY", "Cyprus", "Chypre", "Cyprus"],
+  ["CZ", "Czech Republic", "République Tchèque", "Tsjechië"],
+  ["DE", "Germany", "Allemagne", "Duitsland"],
+  ["DJ", "Djibouti", "Djibouti", "Djibouti"],
+  ["DK", "Denmark", "Danemark", "Denemarken"],
+  ["DM", "Dominica", "Dominique", "Dominica"],
+  ["DO", "Dominican Republic", "République Dominicaine", "Dominicaanse Republiek"],
+  ["DZ", "Algeria", "Algérie", "Algerije"],
+  ["EC", "Ecuador", "Équateur", "Ecuador"],
+  ["EE", "Estonia", "Estonie", "Estland"],
+  ["EG", "Egypt", "Égypte", "Egypte"],
+  ["EH", "Western Sahara", "Sahara occidental", "Westelijke Sahara"],
+  ["ER", "Eritrea", "Érythrée", "Eritrea"],
+  ["ES", "Spain", "Espagne", "Spanje"],
+  ["ET", "Ethiopia", "Éthiopie", "Ethiopië"],
+  ["FI", "Finland", "Finlande", "Finland"],
+  ["FJ", "Fiji", "Fidji", "Fiji"],
+  ["FK", "Falkland Islands (Malvinas)", "Îles Malouines", "Falklandeilanden"],
+  ["FM", "Micronesia, Federated States of", "Micronésie", "Micronesië"],
+  ["FO", "Faroe Islands", "Îles Féroé", "Faeröer"],
+  ["FR", "France", "France", "Frankrijk"],
+  ["GA", "Gabon", "Gabon", "Gabon"],
+  ["GB", "United Kingdom", "Royaume-Uni", "Verenigd Koninkrijk"],
+  ["GD", "Grenada", "Grenade", "Grenada"],
+  ["GE", "Georgia", "Géorgie", "Georgië"],
+  ["GF", "French Guiana", "Guyane française", "Frans-Guyana"],
+  ["GG", "Guernsey", "Guernesey", "Guernsey"],
+  ["GH", "Ghana", "Ghana", "Ghana"],
+  ["GI", "Gibraltar", "Gibraltar", "Gibraltar"],
+  ["GL", "Greenland", "Groenland", "Groenland"],
+  ["GM", "Republic of The Gambia", "Gambie", "Gambia"],
+  ["GN", "Guinea", "Guinée", "Guinea"],
+  ["GP", "Guadeloupe", "Guadeloupe", "Guadeloupe"],
+  ["GQ", "Equatorial Guinea", "Guinée équatoriale", "Equatoriaal-Guinea"],
+  ["GR", "Greece", "Grèce", "Griekenland"],
+  ["GS", "South Georgia and the South Sandwich Islands", "Géorgie du Sud-et-les Îles Sandwich du Sud", "Zuid-Georgia en de Zuidelijke Sandwicheilanden"],
+  ["GT", "Guatemala", "Guatemala", "Guatemala"],
+  ["GU", "Guam", "Guam", "Guam"],
+  ["GW", "Guinea-Bissau", "Guinée-Bissau", "Guinee-Bissau"],
+  ["GY", "Guyana", "Guyana", "Guyana"],
+  ["HK", "Hong Kong", "Hong Kong", "Hong Kong"],
+  ["HM", "Heard Island and McDonald Islands", "Îles Heard-et-MacDonald", "Heard en McDonaldeilanden"],
+  ["HN", "Honduras", "Honduras", "Honduras"],
+  ["HR", "Croatia", "Croatie", "Kroatië"],
+  ["HT", "Haiti", "Haïti", "Haïti"],
+  ["HU", "Hungary", "Hongrie", "Hongarije"],
+  ["ID", "Indonesia", "Indonésie", "Indonesië"],
+  ["IE", "Ireland", "Irlande", "Ierland"],
+  ["IL", "Israel", "Israël", "Israël"],
+  ["IM", "Isle of Man", "Île de Man", "Man Eiland"],
+  ["IN", "India", "Inde", "India"],
+  ["IO", "British Indian Ocean Territory", "Océan Indien Britannique", "Brits Indische oceaan"],
+  ["IQ", "Iraq", "Irak", "Irak"],
+  ["IR", "Iran", "Iran", "Iran"],
+  ["IS", "Iceland", "Islande", "IJsland"],
+  ["IT", "Italy", "Italie", "Italië"],
+  ["JE", "Jersey", "Jersey", "Jersey"],
+  ["JM", "Jamaica", "Jamaïque", "Jamaica"],
+  ["JO", "Jordan", "Jordanie", "Jordanië"],
+  ["JP", "Japan", "Japon", "Japan"],
+  ["KE", "Kenya", "Kenya", "Kenia"],
+  ["KG", "Kyrgyzstan", "Kirghizistan", "Kirgizië"],
+  ["KH", "Cambodia", "Cambodge", "Cambodja"],
+  ["KI", "Kiribati", "Kiribati", "Kiribati"],
+  ["KM", "Comoros", "Comores", "Comoren"],
+  ["KN", "Saint Kitts and Nevis", "Saint-Christophe-et-Niévès", "Saint Kitts en Nevis"],
+  ["KP", "North Korea", "Corée du Nord", "Noord-Korea"],
+  ["KR", "South Korea", "Corée du Sud", "Zuid-Korea"],
+  ["KW", "Kuwait", "Koweït", "Koeweit"],
+  ["KY", "Cayman Islands", "Îles Caïmans", "Kaaimaneilanden"],
+  ["KZ", "Kazakhstan", "Kazakhstan", "Kazachstan"],
+  ["LA", "Laos", "Laos", "Laos"],
+  ["LB", "Lebanon", "Liban", "Libanon"],
+  ["LC", "Saint Lucia", "Sainte-Lucie", "Saint Lucia"],
+  ["LI", "Liechtenstein", "Liechtenstein", "Liechtenstein"],
+  ["LK", "Sri Lanka", "Sri Lanka", "Sri Lanka"],
+  ["LR", "Liberia", "Libéria", "Liberia"],
+  ["LS", "Lesotho", "Lesotho", "Lesotho"],
+  ["LT", "Lithuania", "Lituanie", "Litouwen"],
+  ["LU", "Luxembourg", "Luxembourg", "Luxemburg"],
+  ["LV", "Latvia", "Lettonie", "Letland"],
+  ["LY", "Libya", "Libye", "Libië"],
+  ["MA", "Morocco", "Maroc", "Marokko"],
+  ["MC", "Monaco", "Monaco", "Monaco"],
+  ["MD", "Moldova, Republic of", "Moldavie", "Moldavië"],
+  ["ME", "Montenegro", "Monténégro", "Montenegro"],
+  ["MF", "Saint Martin (French part)", "Saint-Martin (partie française)", "Collectiviteit van Sint-Maarten"],
+  ["MG", "Madagascar", "Madagascar", "Madagaskar"],
+  ["MH", "Marshall Islands", "Îles Marshall", "Marshalleilanden"],
+  ["MK", "North Macedonia", "Macédoine du Nord", "Noord-Macedonië"],
+  ["ML", "Mali", "Mali", "Mali"],
+  ["MM", "Myanmar", "Myanmar", "Myanmar"],
+  ["MN", "Mongolia", "Mongolie", "Mongolië"],
+  ["MO", "Macao", "Macao", "Macao"],
+  ["MP", "Northern Mariana Islands", "Îles Mariannes du Nord", "Noordelijke Marianen"],
+  ["MQ", "Martinique", "Martinique", "Martinique"],
+  ["MR", "Mauritania", "Mauritanie", "Mauritanië"],
+  ["MS", "Montserrat", "Montserrat", "Montserrat"],
+  ["MT", "Malta", "Malte", "Malta"],
+  ["MU", "Mauritius", "Maurice", "Mauritius"],
+  ["MV", "Maldives", "Maldives", "Maldiven"],
+  ["MW", "Malawi", "Malawi", "Malawi"],
+  ["MX", "Mexico", "Mexique", "Mexico"],
+  ["MY", "Malaysia", "Malaisie", "Maleisië"],
+  ["MZ", "Mozambique", "Mozambique", "Mozambique"],
+  ["NA", "Namibia", "Namibie", "Namibië"],
+  ["NC", "New Caledonia", "Nouvelle-Calédonie", "Nieuw-Caledonië"],
+  ["NE", "Niger", "Niger", "Niger"],
+  ["NF", "Norfolk Island", "Île Norfolk", "Norfolk"],
+  ["NG", "Nigeria", "Nigéria", "Nigeria"],
+  ["NI", "Nicaragua", "Nicaragua", "Nicaragua"],
+  ["NL", "Netherlands", "Pays-Bas", "Nederland"],
+  ["NO", "Norway", "Norvège", "Noorwegen"],
+  ["NP", "Nepal", "Népal", "Nepal"],
+  ["NR", "Nauru", "Nauru", "Nauru"],
+  ["NU", "Niue", "Niué", "Niue"],
+  ["NZ", "New Zealand", "Nouvelle-Zélande", "Nieuw-Zeeland"],
+  ["OM", "Oman", "Oman", "Oman"],
+  ["PA", "Panama", "Panama", "Panama"],
+  ["PE", "Peru", "Pérou", "Peru"],
+  ["PF", "French Polynesia", "Polynésie française", "Frans-Polynesië"],
+  ["PG", "Papua New Guinea", "Papouasie-Nouvelle-Guinée", "Papoea-Nieuw-Guinea"],
+  ["PH", "Philippines", "Philippines", "Filipijnen"],
+  ["PK", "Pakistan", "Pakistan", "Pakistan"],
+  ["PL", "Poland", "Pologne", "Polen"],
+  ["PM", "Saint Pierre and Miquelon", "Saint-Pierre-et-Miquelon", "Saint-Pierre en Miquelon"],
+  ["PN", "Pitcairn", "Îles Pitcairn", "Pitcairn"],
+  ["PR", "Puerto Rico", "Porto Rico", "Puerto Rico"],
+  ["PS", "State of Palestine", "Palestine", "Palestina"],
+  ["PT", "Portugal", "Portugal", "Portugal"],
+  ["PW", "Palau", "Palaos", "Palau"],
+  ["PY", "Paraguay", "Paraguay", "Paraguay"],
+  ["QA", "Qatar", "Qatar", "Qatar"],
+  ["RE", "Reunion", "Réunion", "Réunion"],
+  ["RO", "Romania", "Roumanie", "Roemenië"],
+  ["RS", "Serbia", "Serbie", "Servië"],
+  ["RU", "Russia", "Russie", "Rusland"],
+  ["RW", "Rwanda", "Rwanda", "Rwanda"],
+  ["SA", "Saudi Arabia", "Arabie Saoudite", "Saudi-Arabië"],
+  ["SB", "Solomon Islands", "Îles Salomon", "Salomonseilanden"],
+  ["SC", "Seychelles", "Seychelles", "Seychellen"],
+  ["SD", "Sudan", "Soudan", "Soedan"],
+  ["SE", "Sweden", "Suède", "Zweden"],
+  ["SG", "Singapore", "Singapour", "Singapore"],
+  ["SH", "Saint Helena", "Sainte-Hélène", "Sint-Helena"],
+  ["SI", "Slovenia", "Slovénie", "Slovenië"],
+  ["SJ", "Svalbard and Jan Mayen", "Svalbard et Île Jan Mayen", "Spitsbergen en Jan Mayen"],
+  ["SK", "Slovakia", "Slovaquie", "Slowakije"],
+  ["SL", "Sierra Leone", "Sierra Leone", "Sierra Leone"],
+  ["SM", "San Marino", "Saint-Marin", "San Marino"],
+  ["SN", "Senegal", "Sénégal", "Senegal"],
+  ["SO", "Somalia", "Somalie", "Somalië"],
+  ["SR", "Suriname", "Suriname", "Suriname"],
+  ["SS", "South Sudan", "Soudan du Sud", "Zuid-Soedan"],
+  ["ST", "Sao Tome and Principe", "São Tomé-et-Principe", "São Tomé en Principe"],
+  ["SV", "El Salvador", "El Salvador", "El Salvador"],
+  ["SX", "Sint Maarten (Dutch part)", "Saint-Martin (partie néerlandaise)", "Land Sint Maarten"],
+  ["SY", "Syria", "Syrie", "Syrië"],
+  ["SZ", "Eswatini", "Royaume d'Eswatini", "Swaziland"],
+  ["TC", "Turks and Caicos Islands", "Îles Turques-et-Caïques", "Turks- en Caicoseilanden"],
+  ["TD", "Chad", "Tchad", "Tsjaad"],
+  ["TF", "French Southern Territories", "Terres australes françaises", "Franse Zuidelijke Gebieden"],
+  ["TG", "Togo", "Togo", "Togo"],
+  ["TH", "Thailand", "Thaïlande", "Thailand"],
+  ["TJ", "Tajikistan", "Tadjikistan", "Tadzjikistan"],
+  ["TK", "Tokelau", "Tokelau", "Tokelau"],
+  ["TL", "Timor-Leste", "Timor-Leste", "Timor Leste"],
+  ["TM", "Turkmenistan", "Turkménistan", "Turkmenistan"],
+  ["TN", "Tunisia", "Tunisie", "Tunesië"],
+  ["TO", "Tonga", "Tonga", "Tonga"],
+  ["TR", "Türkiye", "Turquie", "Turkije"],
+  ["TT", "Trinidad and Tobago", "Trinité-et-Tobago", "Trinidad en Tobago"],
+  ["TV", "Tuvalu", "Tuvalu", "Tuvalu"],
+  ["TW", "Taiwan", "Taïwan", "Taiwan"],
+  ["TZ", "United Republic of Tanzania", "République unie de Tanzanie", "Tanzania"],
+  ["UA", "Ukraine", "Ukraine", "Oekraïne"],
+  ["UG", "Uganda", "Ouganda", "Oeganda"],
+  ["UM", "United States Minor Outlying Islands", "Îles mineures éloignées des États-Unis", "Amerikaanse Kleinere Afgelegen Eilanden"],
+  ["US", "United States", "États-Unis d'Amérique", "Verenigde Staten"],
+  ["UY", "Uruguay", "Uruguay", "Uruguay"],
+  ["UZ", "Uzbekistan", "Ouzbékistan", "Oezbekistan"],
+  ["VA", "Vatican City", "Saint-Siège (Vatican)", "Vaticaanstad"],
+  ["VC", "Saint Vincent and the Grenadines", "Saint-Vincent-et-les-Grenadines", "Saint Vincent en de Grenadines"],
+  ["VE", "Venezuela", "Venezuela", "Venezuela"],
+  ["VG", "Virgin Islands, British", "Îles vierges britanniques", "Britse Maagdeneilanden"],
+  ["VI", "Virgin Islands, U.S.", "Îles vierges américaines", "Amerikaanse Maagdeneilanden"],
+  ["VN", "Vietnam", "Vietnam", "Vietnam"],
+  ["VU", "Vanuatu", "Vanuatu", "Vanuatu"],
+  ["WF", "Wallis and Futuna", "Wallis-et-Futuna", "Wallis en Futuna"],
+  ["WS", "Samoa", "Samoa", "Samoa"],
+  ["XK", "Kosovo", "Kosovo", "Kosovo"],
+  ["YE", "Yemen", "Yémen", "Jemen"],
+  ["YT", "Mayotte", "Mayotte", "Mayotte"],
+  ["ZA", "South Africa", "Afrique du Sud", "Zuid-Afrika"],
+  ["ZM", "Zambia", "Zambie", "Zambia"],
+  ["ZW", "Zimbabwe", "Zimbabwe", "Zimbabwe"],
+  ];
+
+  // Aernoud's explicit top-of-list order (most likely guest countries for
+  // this property), everything else follows alphabetically in the current
+  // interface language — see populateCountrySelect() below.
+  const TOP_COUNTRY_CODES = ["GB", "BE", "NL", "FR", "ES", "DE", "CH", "AT"];
+
+  // Default country per page language when the guest hasn't chosen one
+  // themselves yet (see populateCountrySelect()/wireLanguageSwitchLinks()).
+  const DEFAULT_COUNTRY_BY_LANG = { nl: "NL", fr: "FR", en: "GB" };
+
+  // Real-world countries that don't use postal codes at all — mirrors
+  // _lib/countries.mjs's COUNTRIES_WITHOUT_POSTAL_CODE exactly (client-side
+  // copy for immediate UI feedback; the server list is authoritative).
+  const COUNTRIES_WITHOUT_POSTAL_CODE = new Set([
+    "AO", "AG", "AW", "BS", "BZ", "BJ", "BW", "BF", "BI", "CM", "CF", "KM",
+    "CG", "CD", "CK", "CI", "DJ", "DM", "GQ", "ER", "FJ", "TF", "GM", "GH",
+    "GD", "GN", "GY", "HK", "IE", "JM", "KE", "KI", "KP", "LC", "LY", "MO",
+    "MW", "ML", "MR", "MU", "MS", "NR", "AN", "NU", "PA", "QA", "RW", "KN",
+    "ST", "SC", "SL", "SB", "SO", "SR", "SY", "TZ", "TL", "TG", "TK", "TO",
+    "TT", "TV", "UG", "AE", "VU", "YE", "ZW",
+  ]);
+
+  // Same three exact-digit-count groups as _lib/countries.mjs's
+  // POSTAL_CODE_PATTERNS — everything else with a postal code just needs a
+  // non-empty value (loose on purpose; the server is authoritative).
+  const POSTAL_CODE_PATTERNS = {
+    GB: /^[A-Za-z0-9]+(\s?[A-Za-z0-9]+)*$/,
+    NL: /^[A-Za-z0-9]+(\s?[A-Za-z0-9]+)*$/,
+    BE: /^\d{4}$/,
+    CH: /^\d{4}$/,
+    AT: /^\d{4}$/,
+    FR: /^\d{5}$/,
+    ES: /^\d{5}$/,
+    DE: /^\d{5}$/,
+  };
+
   const STRINGS = {
     en: {
       selectRange: "Select your check-in and check-out dates on the calendar",
       nightsLabel: (n) => `${n} night${n === 1 ? "" : "s"} selected`,
       submit: "Send booking request",
       errorGeneric: "Something went wrong sending your request. Please try again, or reach out directly.",
+      connectionTimeout: "This is taking too long to respond. Nothing was booked or charged — please try again in a moment, or reach out directly if it keeps happening.",
       pickBothDates: "Please select both a check-in and a check-out date on the calendar.",
       fillNameEmail: "Please fill in your name and a valid email address.",
       rangeUnavailable: "Some of the nights in that range are already booked or requested. Please pick different dates.",
@@ -60,6 +357,24 @@
       capacityExceeded: (max) => `This stay allows at most ${max.maxAdults} adults and ${max.maxChildren} children (${max.maxTotalGuests} guests total).`,
       capacityWarning: (max) => `That's more guests than this stay allows: at most ${max.maxAdults} adults, ${max.maxChildren} children, ${max.maxTotalGuests} guests in total. Please adjust the numbers above.`,
       childrenExceedTotal: "The number of children can't be more than the total number of people.",
+      // Address — direct rental with self-check-in, needed for the rental
+      // agreement (see book.mjs / _lib/countries.mjs for the server-side
+      // rules this mirrors).
+      addressHeading: "Address of the main renter",
+      addressExplain: "For your booking and rental agreement.",
+      fullNameLabel: "Full name (main renter)",
+      addressLine1Label: "Street and house number",
+      addressLine2Label: "Apartment, suite, etc. (optional)",
+      postalCodeLabel: "Postal code",
+      postalCodeOptionalLabel: "Postal code (not required for this country)",
+      cityLabel: "City",
+      countryLabel: "Country",
+      countryPlaceholder: "Select a country",
+      addressLine1Required: "Please fill in your street and house number.",
+      addressCityRequired: "Please fill in your city.",
+      addressCountryRequired: "Please select a country.",
+      addressPostalCodeRequired: "Please fill in a postal code.",
+      addressPostalCodeInvalid: "That doesn't look like a valid postal code for the selected country.",
       arrivalDayNotAllowed: "Stays can't start on that day of the week. Please pick a different check-in date.",
       saturdayTurnoverRequired: "During this period, stays must both start and end on a Saturday. Please adjust your check-in and/or check-out date.",
       dayHighSeasonWeekday: "high season — Saturdays only",
@@ -120,6 +435,7 @@
       nightsLabel: (n) => `${n} nuit${n === 1 ? "" : "s"} sélectionnée${n === 1 ? "" : "s"}`,
       submit: "Envoyer la demande de réservation",
       errorGeneric: "Une erreur est survenue lors de l'envoi. Merci de réessayer, ou contactez-nous directement.",
+      connectionTimeout: "La réponse prend trop de temps. Rien n'a été réservé ni débité — merci de réessayer dans un instant, ou de nous contacter directement si cela persiste.",
       pickBothDates: "Merci de sélectionner une date d'arrivée et une date de départ sur le calendrier.",
       fillNameEmail: "Merci de renseigner votre nom et une adresse e-mail valide.",
       rangeUnavailable: "Certaines nuits de cette période sont déjà réservées ou en demande. Merci de choisir d'autres dates.",
@@ -147,6 +463,21 @@
       capacityExceeded: (max) => `Ce séjour accepte au maximum ${max.maxAdults} adultes et ${max.maxChildren} enfants (${max.maxTotalGuests} personnes au total).`,
       capacityWarning: (max) => `C'est plus de personnes que ce séjour n'accepte : au maximum ${max.maxAdults} adultes, ${max.maxChildren} enfants, ${max.maxTotalGuests} personnes au total. Merci d'ajuster les nombres ci-dessus.`,
       childrenExceedTotal: "Le nombre d'enfants ne peut pas dépasser le nombre total de personnes.",
+      addressHeading: "Adresse du locataire principal",
+      addressExplain: "Pour votre réservation et votre contrat de location.",
+      fullNameLabel: "Nom complet (locataire principal)",
+      addressLine1Label: "Rue et numéro",
+      addressLine2Label: "Appartement, etc. (facultatif)",
+      postalCodeLabel: "Code postal",
+      postalCodeOptionalLabel: "Code postal (non requis pour ce pays)",
+      cityLabel: "Ville",
+      countryLabel: "Pays",
+      countryPlaceholder: "Choisissez un pays",
+      addressLine1Required: "Merci de renseigner votre rue et numéro.",
+      addressCityRequired: "Merci de renseigner votre ville.",
+      addressCountryRequired: "Merci de sélectionner un pays.",
+      addressPostalCodeRequired: "Merci de renseigner un code postal.",
+      addressPostalCodeInvalid: "Ce code postal ne semble pas valable pour le pays sélectionné.",
       arrivalDayNotAllowed: "Les séjours ne peuvent pas commencer ce jour-là. Merci de choisir une autre date d'arrivée.",
       saturdayTurnoverRequired: "Pendant cette période, les séjours doivent commencer ET se terminer un samedi. Merci d'ajuster votre date d'arrivée et/ou de départ.",
       dayHighSeasonWeekday: "haute saison — samedi uniquement",
@@ -193,6 +524,7 @@
       nightsLabel: (n) => `${n} nacht${n === 1 ? "" : "en"} geselecteerd`,
       submit: "Boekingsaanvraag versturen",
       errorGeneric: "Er ging iets mis bij het versturen. Probeer het opnieuw, of neem rechtstreeks contact op.",
+      connectionTimeout: "Dit duurt te lang om te reageren. Er is niets geboekt of afgeschreven — probeer het zo opnieuw, of neem rechtstreeks contact op als dit blijft gebeuren.",
       pickBothDates: "Selecteer zowel een aankomst- als een vertrekdatum in de kalender.",
       fillNameEmail: "Vul je naam en een geldig e-mailadres in.",
       rangeUnavailable: "Sommige nachten in die periode zijn al geboekt of aangevraagd. Kies andere data.",
@@ -220,6 +552,21 @@
       capacityExceeded: (max) => `Dit verblijf biedt plaats aan maximaal ${max.maxAdults} volwassenen en ${max.maxChildren} kinderen (${max.maxTotalGuests} gasten totaal).`,
       capacityWarning: (max) => `Dat zijn meer gasten dan dit verblijf toestaat: maximaal ${max.maxAdults} volwassenen, ${max.maxChildren} kinderen, ${max.maxTotalGuests} gasten totaal. Pas de aantallen hierboven aan.`,
       childrenExceedTotal: "Het aantal kinderen kan niet groter zijn dan het totaal aantal personen.",
+      addressHeading: "Adres van de hoofdhuurder",
+      addressExplain: "Voor uw boeking en huurovereenkomst.",
+      fullNameLabel: "Volledige naam (hoofdhuurder)",
+      addressLine1Label: "Straat en huisnummer",
+      addressLine2Label: "Toevoeging / adresregel 2 (optioneel)",
+      postalCodeLabel: "Postcode",
+      postalCodeOptionalLabel: "Postcode (niet verplicht voor dit land)",
+      cityLabel: "Woonplaats",
+      countryLabel: "Land",
+      countryPlaceholder: "Kies een land",
+      addressLine1Required: "Vul je straat en huisnummer in.",
+      addressCityRequired: "Vul je woonplaats in.",
+      addressCountryRequired: "Kies een land.",
+      addressPostalCodeRequired: "Vul een postcode in.",
+      addressPostalCodeInvalid: "Dit lijkt geen geldige postcode voor het gekozen land.",
       arrivalDayNotAllowed: "Een verblijf kan niet op die dag beginnen. Kies een andere aankomstdatum.",
       saturdayTurnoverRequired: "In deze periode moet een verblijf zowel op zaterdag beginnen als op zaterdag eindigen. Pas je aankomst- en/of vertrekdatum aan.",
       dayHighSeasonWeekday: "hoogseizoen — alleen zaterdag",
@@ -467,6 +814,12 @@
     const childrenEl = document.getElementById("children");
     if (totalEl) p.set("totalGuests", totalEl.value);
     if (childrenEl) p.set("children", childrenEl.value);
+    // The country default depends on the page's OWN language (see
+    // DEFAULT_COUNTRY_BY_LANG) — carrying it over unconditionally on a
+    // language switch would fight that default. Only an explicit choice the
+    // guest actually made themselves is preserved across the switch.
+    const countryEl = document.getElementById("guest-address-country");
+    if (countryEl && countryManuallyChosen && countryEl.value) p.set("country", countryEl.value);
     return p;
   }
 
@@ -484,6 +837,12 @@
     });
   }
 
+  // Set by restoreStateFromURL() when a `country` param is present, so
+  // populateCountrySelect() (called after this, in init()) applies it
+  // instead of the page's own language default — and so it counts as an
+  // already-manual choice for the NEXT language switch too.
+  let pendingCountryFromURL = null;
+
   function restoreStateFromURL() {
     const p = new URLSearchParams(window.location.search);
     const ci = p.get("checkin"), co = p.get("checkout");
@@ -494,6 +853,8 @@
     const childrenEl = document.getElementById("children");
     if (tg && totalEl) totalEl.value = tg;
     if (c && childrenEl) childrenEl.value = c;
+    const countryParam = p.get("country");
+    if (countryParam && /^[A-Za-z]{2}$/.test(countryParam)) pendingCountryFromURL = countryParam.toUpperCase();
     if (selStart) {
       const d = new Date(selStart + "T00:00:00Z");
       viewYear = d.getUTCFullYear();
@@ -561,6 +922,67 @@
       childrenEl.value = "0";
     } else {
       childrenEl.value = Number(prev) <= maxChildren ? prev : String(maxChildren);
+    }
+  }
+
+  // Builds the country <select>'s options: Aernoud's fixed top-8 order
+  // first, then a divider, then every other country alphabetically BY NAME
+  // IN THE CURRENT INTERFACE LANGUAGE (so the NL page sorts Dutch names,
+  // etc.) — matches _lib/countries.mjs's COUNTRIES data exactly (same
+  // codes, same three names) so the server always recognizes whatever code
+  // this select actually submits.
+  let countryManuallyChosen = false; // true once the guest picks one themselves (not the language default)
+  function nameForLang(row) {
+    return lang === "fr" ? row[2] : lang === "nl" ? row[3] : row[1];
+  }
+  function populateCountrySelect() {
+    const el = document.getElementById("guest-address-country");
+    if (!el) return;
+    const prev = el.value;
+    el.innerHTML = "";
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = STRINGS[lang].countryPlaceholder;
+    placeholder.disabled = true;
+    el.appendChild(placeholder);
+
+    const topRows = TOP_COUNTRY_CODES.map((code) => COUNTRIES.find((r) => r[0] === code)).filter(Boolean);
+    for (const row of topRows) {
+      const opt = document.createElement("option");
+      opt.value = row[0];
+      opt.textContent = nameForLang(row);
+      el.appendChild(opt);
+    }
+    const divider = document.createElement("option");
+    divider.disabled = true;
+    divider.textContent = "──────────";
+    el.appendChild(divider);
+
+    const rest = COUNTRIES.filter((r) => !TOP_COUNTRY_CODES.includes(r[0]))
+      .slice()
+      .sort((a, b) => nameForLang(a).localeCompare(nameForLang(b), lang === "en" ? "en" : lang));
+    for (const row of rest) {
+      const opt = document.createElement("option");
+      opt.value = row[0];
+      opt.textContent = nameForLang(row);
+      el.appendChild(opt);
+    }
+
+    if (pendingCountryFromURL && COUNTRIES.some((r) => r[0] === pendingCountryFromURL)) {
+      // Carried over from a language switch where the guest had already
+      // chosen a country themselves — restore it, and treat it as manually
+      // chosen from here on too (so switching language AGAIN still keeps
+      // it, rather than reverting to a default after one hop).
+      el.value = pendingCountryFromURL;
+      countryManuallyChosen = true;
+    } else if (prev) {
+      el.value = prev;
+    } else {
+      // No value yet — apply the language's own default. This does NOT
+      // count as the guest manually choosing a country, so a later language
+      // switch is still free to change it again.
+      el.value = DEFAULT_COUNTRY_BY_LANG[lang] || "";
+      countryManuallyChosen = false;
     }
   }
 
@@ -1268,10 +1690,27 @@
     }
     const termsEl = document.getElementById("terms-accept");
     if (termsEl && !termsEl.checked) {
-      showStatus(t.termsRequired, true);
+      // Right next to the checkbox itself (#ae-terms-note), not only the
+      // generic #ae-booking-status message below the submit button — a
+      // guest scanning the form for why nothing happened should see the
+      // reason exactly where the checkbox is.
+      showTermsNote(t.termsRequired, true);
+      showStatus("", false);
       termsEl.focus();
       return false;
     }
+    showTermsNote("", false);
+
+    // Address gate — same spot as the terms gate above: fails BEFORE
+    // btn.disabled is ever set, so a blocked submit here never leaves the
+    // pay button stuck in its "Redirecting…" state; it just doesn't start.
+    const addressError = validateAddressClient();
+    if (addressError) {
+      showAddressNote(addressError, true);
+      showStatus("", false);
+      return false;
+    }
+    showAddressNote("", false);
 
     const { totalGuests, children } = getPartySize();
     const payload = {
@@ -1285,17 +1724,37 @@
       message: document.getElementById("guest-message") ? document.getElementById("guest-message").value.trim() : "",
       lang,
       termsAccepted: termsEl ? termsEl.checked : true,
+      addressLine1: document.getElementById("guest-address-line1")?.value.trim() || "",
+      addressLine2: document.getElementById("guest-address-line2")?.value.trim() || "",
+      postalCode: document.getElementById("guest-address-postal")?.value.trim() || "",
+      city: document.getElementById("guest-address-city")?.value.trim() || "",
+      country: document.getElementById("guest-address-country")?.value || "",
     };
 
     btn.disabled = true;
     btn.textContent = t.redirecting;
     showStatus("", false);
 
+    // A network stall (not a fast HTTP error — a request that simply never
+    // resolves) used to leave the button stuck on "Redirecting…" forever,
+    // with no error shown and no way to retry short of reloading the page —
+    // exactly the "blijft hangen" symptom reported live. This hard-aborts
+    // the request after 20s so the catch block below always runs, the
+    // spinner always ends, and the guest always gets a concrete message and
+    // a working retry. Aborting here never risks a double booking/charge:
+    // book.mjs hasn't created anything yet if this fires (it only claims
+    // nights and saves the booking well within that window), and if it
+    // somehow did complete just as this fires, re-submitting the same
+    // dates simply re-runs book.mjs's own availability re-check.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
+
     try {
       const res = await fetch("/.netlify/functions/book", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
+        signal: controller.signal,
       });
       const data = await res.json();
       if (!res.ok || !data.ok) {
@@ -1307,7 +1766,28 @@
         if (data.code === "ARRIVAL_DAY_NOT_ALLOWED") throw new Error(t.arrivalDayNotAllowed);
         if (data.code === "SATURDAY_TURNOVER_REQUIRED") throw new Error(t.saturdayTurnoverRequired);
         if (data.code === "CHILDREN_EXCEED_TOTAL") throw new Error(t.childrenExceedTotal);
-        if (data.code === "TERMS_NOT_ACCEPTED") throw new Error(t.termsRequired);
+        if (data.code === "TERMS_NOT_ACCEPTED") {
+          const termsErr = new Error(t.termsRequired);
+          termsErr.isTermsError = true;
+          throw termsErr;
+        }
+        // Same address validation book.mjs runs (see _lib/countries.mjs) —
+        // reached here only if it somehow disagreed with the client-side
+        // check above (a stale page, a country list that changed, etc.).
+        // Shown right next to the address fields either way, never as a
+        // generic failure at the bottom of the form.
+        const ADDRESS_CODES = {
+          ADDRESS_LINE1_REQUIRED: t.addressLine1Required,
+          ADDRESS_CITY_REQUIRED: t.addressCityRequired,
+          ADDRESS_COUNTRY_REQUIRED: t.addressCountryRequired,
+          ADDRESS_POSTAL_CODE_REQUIRED: t.addressPostalCodeRequired,
+          ADDRESS_POSTAL_CODE_INVALID: t.addressPostalCodeInvalid,
+        };
+        if (ADDRESS_CODES[data.code]) {
+          const addrErr = new Error(ADDRESS_CODES[data.code]);
+          addrErr.isAddressError = true;
+          throw addrErr;
+        }
         throw new Error(data.error || t.errorGeneric);
       }
       // Full-page navigation to Stripe's own hosted Checkout page — payment
@@ -1317,9 +1797,28 @@
       window.location.href = data.checkoutUrl;
       return false;
     } catch (e) {
-      showStatus(e.message || t.errorGeneric, true);
+      // Whatever failed, ALWAYS end the "Redirecting…" spinner state and
+      // show a concrete, understandable message — never a silently stuck
+      // button — and never touch selStart/selEnd/night-claim state here, so
+      // a guest can immediately retry without any risk of a double booking
+      // or double charge (the retry simply re-submits the same unclaimed
+      // request; book.mjs's own re-check of availability is what actually
+      // guards against a double claim either way).
+      if (e.isTermsError) {
+        showTermsNote(e.message || t.termsRequired, true);
+        showStatus("", false);
+      } else if (e.isAddressError) {
+        showAddressNote(e.message || t.errorGeneric, true);
+        showStatus("", false);
+      } else if (e.name === "AbortError") {
+        showStatus(t.connectionTimeout, true);
+      } else {
+        showStatus(e.message || t.errorGeneric, true);
+      }
       btn.disabled = false;
       btn.textContent = t.submitPay || t.submit;
+    } finally {
+      clearTimeout(timeoutId);
     }
     return false;
   }
@@ -1330,6 +1829,66 @@
     el.textContent = msg;
     el.setAttribute("role", isError ? "alert" : "status");
     el.style.color = isError ? "#d98c8c" : "var(--text-dim)";
+  }
+
+  // Writes into #ae-terms-note, right next to the terms checkbox itself —
+  // not only #ae-booking-status below the submit button — so a guest who
+  // hasn't accepted the terms sees why submission was blocked exactly where
+  // the checkbox is, not somewhere else on the page.
+  function showTermsNote(msg, isError) {
+    const el = document.getElementById("ae-terms-note");
+    if (!el) return;
+    el.textContent = msg;
+    el.style.color = isError ? "#d98c8c" : "var(--text-dim)";
+  }
+
+  // Same idea as showTermsNote() — right next to the address fields, not
+  // only the generic #ae-booking-status message below the pay button.
+  function showAddressNote(msg, isError) {
+    const el = document.getElementById("ae-address-note");
+    if (!el) return;
+    el.textContent = msg;
+    el.style.color = isError ? "#d98c8c" : "var(--text-dim)";
+  }
+
+  // Postal code is only REQUIRED where the selected country actually uses
+  // one (see COUNTRIES_WITHOUT_POSTAL_CODE) — this just relabels the field
+  // so the guest isn't left guessing why it's blank-friendly for some
+  // countries; validateAddressClient()/book.mjs's own validateAddress() are
+  // what actually enforce it either way.
+  function updatePostalCodeOptionalHint() {
+    const countryEl = document.getElementById("guest-address-country");
+    const labelEl = document.getElementById("ae-postal-code-label");
+    if (!countryEl || !labelEl) return;
+    const t = STRINGS[lang];
+    const optional = COUNTRIES_WITHOUT_POSTAL_CODE.has(countryEl.value);
+    labelEl.textContent = optional ? t.postalCodeOptionalLabel : t.postalCodeLabel;
+    const postalEl = document.getElementById("guest-address-postal");
+    if (postalEl) postalEl.required = !optional;
+  }
+
+  // Mirrors _lib/countries.mjs's validateAddress() exactly, for immediate
+  // client-side feedback — book.mjs re-runs the authoritative version of
+  // this same check server-side before ever creating a Checkout Session, so
+  // nothing here is trusted on its own. Returns a translated message, or
+  // null if the address is complete.
+  function validateAddressClient() {
+    const t = STRINGS[lang];
+    const line1 = document.getElementById("guest-address-line1")?.value.trim() || "";
+    const city = document.getElementById("guest-address-city")?.value.trim() || "";
+    const postalCode = document.getElementById("guest-address-postal")?.value.trim() || "";
+    const country = document.getElementById("guest-address-country")?.value || "";
+    if (!line1) return t.addressLine1Required;
+    if (!city) return t.addressCityRequired;
+    if (!country || !COUNTRIES.some((r) => r[0] === country)) return t.addressCountryRequired;
+    const needsPostal = !COUNTRIES_WITHOUT_POSTAL_CODE.has(country);
+    if (needsPostal && !postalCode) return t.addressPostalCodeRequired;
+    if (postalCode) {
+      const pattern = POSTAL_CODE_PATTERNS[country];
+      if (pattern && !pattern.test(postalCode)) return t.addressPostalCodeInvalid;
+      if (!pattern && (postalCode.length < 2 || postalCode.length > 12)) return t.addressPostalCodeInvalid;
+    }
+    return null;
   }
 
   function showSuccess(title, body) {
@@ -1418,6 +1977,7 @@
       viewMonth = t.getMonth();
       restoreStateFromURL();
       wireLanguageSwitchLinks();
+      populateCountrySelect();
       loadAvailability();
       checkPostRedirectStatus();
 
@@ -1425,6 +1985,19 @@
       const childrenEl = document.getElementById("children");
       if (totalEl) totalEl.addEventListener("change", () => { populateChildrenSelect(); checkCapacity(); refreshQuote(); });
       if (childrenEl) childrenEl.addEventListener("change", refreshQuote);
+
+      const termsEl = document.getElementById("terms-accept");
+      if (termsEl) termsEl.addEventListener("change", () => { if (termsEl.checked) showTermsNote("", false); });
+
+      const countryEl = document.getElementById("guest-address-country");
+      if (countryEl) {
+        countryEl.addEventListener("change", () => {
+          countryManuallyChosen = true;
+          updatePostalCodeOptionalHint();
+          showAddressNote("", false);
+        });
+      }
+      updatePostalCodeOptionalHint();
     },
     pickDate,
     clearSelection,

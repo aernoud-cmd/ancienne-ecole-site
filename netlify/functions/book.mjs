@@ -24,6 +24,7 @@ import { createCheckoutSession } from "./_lib/stripe.mjs";
 import { siteBaseUrl } from "./_lib/notify.mjs";
 import { calculateQuote, derivePartySize, QuoteError } from "./_lib/pricing.mjs";
 import { CURRENT_TERMS_VERSION } from "./_lib/terms.mjs";
+import { validateAddress } from "./_lib/countries.mjs";
 
 export default async (req) => {
   if (req.method !== "POST") {
@@ -42,7 +43,17 @@ export default async (req) => {
   // re-validated below server-side, never trusted from the client — see
   // _lib/pricing.mjs derivePartySize(). `totalGuests` is the only name this
   // endpoint accepts now; there is no separate "adults" field in the request.
-  const { checkin, checkout, totalGuests, children, name, email, phone, message, lang, termsAccepted } = body || {};
+  const {
+    checkin, checkout, totalGuests, children, name, email, phone, message, lang, termsAccepted,
+    // Main renter's address — direct-rental self-check-in needs this on file
+    // before payment, not collected any other way. addressLine1 is the
+    // street + house number combined (deliberately one free-text field, not
+    // split, so any country's format fits); addressLine2 is optional
+    // (apartment/suite/etc.); country is the ISO 3166-1 alpha-2 code the
+    // guest chose from the dropdown, never a free-typed name. See
+    // _lib/countries.mjs for the full validation rules.
+    addressLine1, addressLine2, postalCode, city, country,
+  } = body || {};
 
   if (!isValidISODate(checkin) || !isValidISODate(checkout)) {
     return json({ ok: false, error: "Invalid dates" }, 400);
@@ -60,6 +71,15 @@ export default async (req) => {
   // specific version of those terms (see README/spec section 10).
   if (termsAccepted !== true) {
     return json({ ok: false, code: "TERMS_NOT_ACCEPTED", error: "Please accept the terms to continue." }, 400);
+  }
+  // Full address required before any Checkout Session is ever created — see
+  // _lib/countries.mjs validateAddress() for the exact rules (international,
+  // not just Dutch postcodes; postal code only required where the country
+  // actually uses one). Rejected here, cheaply, before any availability
+  // lookup or night claim — an incomplete address never gets that far.
+  const addressError = validateAddress({ line1: addressLine1, city, postalCode, country });
+  if (addressError) {
+    return json({ ok: false, code: addressError, error: "Please provide a complete address." }, 400);
   }
 
   const [settings, rates] = await Promise.all([
@@ -124,6 +144,19 @@ export default async (req) => {
     email: String(email).slice(0, 200),
     phone: phone ? String(phone).slice(0, 60) : "",
     message: message ? String(message).slice(0, 1000) : "",
+    // Main renter's address, collected for the rental agreement (direct
+    // rental with self-check-in) — never shown in a public URL or logged;
+    // only stored on the booking record itself, the same way name/email/
+    // phone already are. Older bookings created before this field existed
+    // simply have no `address` — every place that reads it must handle
+    // that (see notify.mjs bookingSummaryTable(), admin-bookings.mjs).
+    address: {
+      line1: String(addressLine1).slice(0, 200),
+      line2: addressLine2 ? String(addressLine2).slice(0, 200) : "",
+      postalCode: postalCode ? String(postalCode).trim().slice(0, 20) : "",
+      city: String(city).slice(0, 120),
+      country, // ISO 3166-1 alpha-2 — see _lib/countries.mjs for the display name lookup
+    },
     lang: bookingLang,
     // "awaiting_payment" = Checkout Session created, temporary hold on the
     //   nights, NOT yet a confirmed booking. Expires on its own if unpaid —

@@ -7,6 +7,7 @@ import { listBookings, getPricingSettings } from "./_lib/store.mjs";
 import { effectiveStatus } from "./_lib/availability.mjs";
 import { hasValidAdminSession, adminUnauthorizedResponse } from "./_lib/adminAuth.mjs";
 import { isStripeTestMode } from "./_lib/stripe.mjs";
+import { countryName } from "./_lib/countries.mjs";
 
 export default async (req) => {
   if (!hasValidAdminSession(req)) return adminUnauthorizedResponse();
@@ -35,6 +36,14 @@ export default async (req) => {
         email: b.email,
         phone: b.phone || "",
         message: b.message || "",
+        // Older bookings (created before this field existed) simply have no
+        // address — admin.js must render that as "no address on file", not
+        // crash. Resolves the stored ISO country code to a Dutch display
+        // name here (admin panel is Dutch) rather than duplicating the full
+        // country list into admin.js.
+        address: b.address
+          ? { ...b.address, countryDisplayName: countryName(b.address.country, "nl") }
+          : null,
         status,
         paid: !!b.paid,
         totalCents: paidTotalCents,

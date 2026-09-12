@@ -14,7 +14,7 @@
 // double-refund, or duplicate email.
 import { getBooking, saveBooking, releaseNights, pushHistory, listBookings } from "./_lib/store.mjs";
 import { verifyWebhookSignature } from "./_lib/stripe.mjs";
-import { sendGuestEmail, siteBaseUrl } from "./_lib/notify.mjs";
+import { sendGuestEmail, siteBaseUrl, bookingSummaryTable } from "./_lib/notify.mjs";
 import { nightsBetween } from "./_lib/dates.mjs";
 import { Resend } from "resend";
 
@@ -234,7 +234,12 @@ async function notifyOwnerPaymentReceived(booking) {
       from: process.env.NOTIFY_FROM_EMAIL || "L'Ancienne École <bookings@ancienne-ecole.rent>",
       to: ownerEmail,
       subject: `PAID & CONFIRMED — ${booking.name}, ${booking.checkin} to ${booking.checkout}`,
-      html: `<div style="font-family: sans-serif;"><p><b>${booking.name}</b> just paid and their stay from <b>${booking.checkin}</b> to <b>${booking.checkout}</b> is now confirmed. See /admin for the full details.</p></div>`,
+      // Same summary table the guest's own confirmation gets (English,
+      // regardless of the guest's own language, since this is the owner's
+      // copy) — includes the main renter's address when the booking has one
+      // (see book.mjs), which is what the owner actually needs on file for
+      // the rental agreement, not only "see /admin".
+      html: `<div style="font-family: sans-serif; max-width: 520px;"><p><b>${booking.name}</b> just paid and their stay is now confirmed.</p>${bookingSummaryTable(booking, "en")}<p style="font-size:12px;color:#999;">Full details, history and refund status: /admin.</p></div>`,
     });
   } catch (e) {
     console.error("stripe-webhook: failed to notify owner of payment:", e.message);

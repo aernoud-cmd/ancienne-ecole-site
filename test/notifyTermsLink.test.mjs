@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import { GUEST_COPY, TERMS_PAGE_URL, bookingSummaryTable } from "../netlify/functions/_lib/notify.mjs";
 
 const booking = {
+  id: "b1f4c2e0-1234-4a5b-9c3d-abcdef012345",
   name: "Marie Dupont",
   checkin: "2027-07-17",
   checkout: "2027-07-24",
@@ -46,15 +47,37 @@ test('GUEST_COPY.fr.paid links "Les petites lignes" to the real FR page', () => 
   assert.doesNotMatch(html, /pièce jointe/i, "no PDF attachment is sent any more — the copy must not claim one");
 });
 
-test("bookingSummaryTable: renders check-in/check-out/guests localized per language", () => {
+test("bookingSummaryTable: renders name, reference, fully-written dates + times, nights and guests, localized per language", () => {
   const nl = bookingSummaryTable(booking, "nl");
+  assert.match(nl, /Naam hoofdboeker/);
+  assert.match(nl, /Marie Dupont/);
+  assert.match(nl, /Boekingsreferentie/);
+  assert.match(nl, new RegExp(booking.id));
   assert.match(nl, /Aankomst/);
+  assert.match(nl, /zaterdag 17 juli 2027/);
+  assert.match(nl, /vanaf 16\.00 uur/);
   assert.match(nl, /Vertrek/);
-  assert.match(nl, /2027-07-17/);
-  assert.match(nl, /2027-07-24/);
+  assert.match(nl, /zaterdag 24 juli 2027/);
+  assert.match(nl, /uiterlijk 10\.00 uur \(lokale tijd Frankrijk\)/);
+  assert.match(nl, /Aantal nachten/);
+  assert.match(nl, /7 nachten/);
   assert.match(nl, /2 volwassene\(n\) \+ 1 kind\(eren\)/);
+  // No identity/address fields have been added — that decision isn't made yet.
+  assert.doesNotMatch(nl, /paspoort/i);
+
+  const en = bookingSummaryTable(booking, "en");
+  assert.match(en, /Saturday 17 July 2027/);
+  assert.match(en, /from 16:00/);
+  assert.match(en, /Saturday 24 July 2027/);
+  assert.match(en, /by 10:00 \(French local time\)/);
+  assert.doesNotMatch(en, /passport/i);
 
   const fr = bookingSummaryTable(booking, "fr");
   assert.match(fr, /Arrivée/);
+  assert.match(fr, /samedi 17 juillet 2027/);
+  assert.match(fr, /à partir de 16h00/);
   assert.match(fr, /Départ/);
+  assert.match(fr, /samedi 24 juillet 2027/);
+  assert.match(fr, /au plus tard à 10h00 \(heure locale française\)/);
+  assert.doesNotMatch(fr, /passeport/i);
 });

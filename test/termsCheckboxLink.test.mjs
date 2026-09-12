@@ -15,6 +15,13 @@
 //     window.opener reference can't be used to drive the original tab, and
 //     nothing about the click can replace/navigate the tab holding the
 //     guest's already-filled-in form)
+//   - the checkbox sits INSIDE the booking form itself, directly above the
+//     pay button — not as separate information elsewhere on the page (this
+//     is the exact thing Aernoud flagged: "de losse informatie onder het
+//     formulier is onvoldoende") — and a dedicated #ae-terms-note element
+//     sits right next to it for the mandatory-acceptance error message
+//     (assets/booking.js's submitBooking() writes into that element, see
+//     test/bookingCalendar.test.mjs)
 //
 // It also checks the link's href is exactly the real, published WordPress
 // page for that language (supplied by Codex/Aernoud) — see
@@ -69,5 +76,32 @@ for (const { file, lang, linkText, mustInclude, url } of PAGES) {
 
     // The rest of the approved sentence around the link is present.
     assert.match(block, new RegExp(mustInclude.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), `expected the approved sentence text\n${block}`);
+
+    // The checkbox must sit INSIDE the booking form, directly above the pay
+    // button — not merely somewhere on the page. Verified by document
+    // order: <form ...> comes before the checkbox, which comes before
+    // id="ae-booking-submit", which comes before the form's closing tag —
+    // and nothing else (another whole field) sits between the checkbox's
+    // label and the submit button.
+    const inputIdx = html.indexOf('id="terms-accept"');
+    const labelEnd = html.indexOf("</label>", inputIdx) + "</label>".length;
+    const formOpenIdx = html.indexOf("<form");
+    const formCloseIdx = html.indexOf("</form>");
+    const submitBtnIdx = html.indexOf('id="ae-booking-submit"');
+    assert.ok(formOpenIdx !== -1 && formCloseIdx !== -1, "expected a <form>...</form> booking form on the page");
+    assert.ok(formOpenIdx < inputIdx, "expected the terms checkbox to be inside the <form>, not before it");
+    assert.ok(inputIdx < submitBtnIdx, "expected the terms checkbox to come before the pay button");
+    assert.ok(submitBtnIdx < formCloseIdx, "expected the pay button itself to still be inside the <form>");
+    const betweenLabelAndButton = html.slice(labelEnd, submitBtnIdx);
+    assert.doesNotMatch(
+      betweenLabelAndButton,
+      /<label|<input|<textarea|<select/,
+      `expected nothing else (no other field) between the terms checkbox and the pay button\n${betweenLabelAndButton}`
+    );
+
+    // A dedicated element right next to the checkbox for the mandatory-
+    // acceptance error message — not only a message at the bottom of the
+    // form (assets/booking.js's showTermsNote() writes into this).
+    assert.match(betweenLabelAndButton, /id="ae-terms-note"/, "expected a #ae-terms-note element right next to the checkbox, before the pay button");
   });
 }

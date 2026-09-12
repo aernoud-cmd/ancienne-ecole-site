@@ -291,6 +291,11 @@
           <h4>Gast</h4>
           <p class="admin-small">${escapeHtml(b.name)} — ${escapeHtml(b.email)}${b.phone ? ` — ${escapeHtml(b.phone)}` : ""}</p>
           ${b.message ? `<p class="admin-small admin-dim">"${escapeHtml(b.message)}"</p>` : ""}
+          ${
+            b.address
+              ? `<p class="admin-small admin-dim">${escapeHtml(b.address.line1)}${b.address.line2 ? `, ${escapeHtml(b.address.line2)}` : ""}<br>${b.address.postalCode ? `${escapeHtml(b.address.postalCode)} ` : ""}${escapeHtml(b.address.city)}, ${escapeHtml(b.address.countryDisplayName || b.address.country || "")}</p>`
+              : `<p class="admin-small admin-dim">Geen adres bekend (boeking van vóór de adresverplichting).</p>`
+          }
           ${b.termsVersion ? `<p class="admin-small admin-dim">Voorwaarden geaccepteerd: versie ${escapeHtml(b.termsVersion)}</p>` : ""}
           <h4 style="margin-top:14px;">Betaling</h4>
           <p class="admin-small">

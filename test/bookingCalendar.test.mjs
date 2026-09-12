@@ -51,7 +51,11 @@ function makeElement(all) {
     setAttribute(k, v) { this[`attr_${k}`] = v; if (k === "id") { this.id = v; all.push(el); } },
     getAttribute(k) { return this[`attr_${k}`]; },
     appendChild(c) { this.children.push(c); c.parentNode = this; return c; },
-    addEventListener() {},
+    _listeners: {},
+    addEventListener(type, cb) { (el._listeners[type] = el._listeners[type] || []).push(cb); },
+    // Test-only helper (not part of the real DOM API) to simulate the guest
+    // actually interacting with an element, e.g. el.fire("change").
+    fire(type) { (el._listeners[type] || []).forEach((cb) => cb({ target: el })); },
     querySelectorAll() { return []; },
     querySelector() { return null; },
     closest() { return null; },
@@ -68,7 +72,9 @@ function buildContext(availabilityPayload) {
     "ae-cal-days", "ae-cal-month-label", "ae-booking-submit", "total-guests", "children",
     "ae-cal-nights", "ae-cal-minstay-note", "checkin", "checkout", "ae-price-breakdown",
     "ae-capacity-warning", "guest-name", "guest-email", "guest-phone", "guest-message",
-    "terms-accept", "ae-booking-status", "ae-booking-form",
+    "terms-accept", "ae-terms-note", "ae-booking-status", "ae-booking-form",
+    "guest-address-line1", "guest-address-line2", "guest-address-postal", "guest-address-city",
+    "guest-address-country", "ae-address-note", "ae-postal-code-label",
   ];
   for (const id of ids) ALL.push(seed(id));
 
@@ -91,7 +97,7 @@ function buildContext(availabilityPayload) {
     }
     return Promise.reject(new Error("unexpected fetch: " + url));
   }
-  const context = { document: documentStub, window: windowStub, fetch: fakeFetch, console, URL, URLSearchParams, setTimeout, Intl, alert() {} };
+  const context = { document: documentStub, window: windowStub, fetch: fakeFetch, console, URL, URLSearchParams, setTimeout, clearTimeout, AbortController, Intl, alert() {} };
   vm.createContext(context);
   vm.runInContext(SRC, context, { filename: "booking.js" });
   return { context, documentStub };
@@ -520,8 +526,13 @@ test("submit: a complete, genuinely valid selection does not trigger the calenda
 // untouched. These two tests prove submission is still blocked while the
 // (default-unchecked) box is unchecked, and still proceeds once it is
 // checked — i.e. the new label/link wiring didn't quietly break the
-// existing required-acceptance behaviour.
-test("submit: an otherwise-complete, valid booking is BLOCKED when the terms checkbox is left unchecked (its default state)", async () => {
+// existing required-acceptance behaviour. The blocked-message assertion
+// checks #ae-terms-note (right next to the checkbox itself, inside the
+// booking form, directly above the pay button) rather than only the
+// generic #ae-booking-status message below the pay button — Aernoud was
+// explicit that a message somewhere at the bottom of the form is not
+// enough; it must appear right next to the checkbox.
+test("submit: an otherwise-complete, valid booking is BLOCKED when the terms checkbox is left unchecked (its default state), with the error shown right next to the checkbox", async () => {
   const rates = buildRates();
   const { context, documentStub } = buildContext(buildAvailabilityPayload(rates));
   await init(context, documentStub);
@@ -536,8 +547,10 @@ test("submit: an otherwise-complete, valid booking is BLOCKED when the terms che
   assert.ok(!termsEl.checked, "the fake terms checkbox must default to unchecked, same as the real one");
   const fakeEvent = { preventDefault() {} };
   await context.window.AE_BOOKING.submit(fakeEvent);
+  const termsNote = documentStub.getElementById("ae-terms-note");
   const status = documentStub.getElementById("ae-booking-status");
-  assert.match(status.textContent, /accept the booking terms/i, `expected the mandatory-terms message, got:\n${status.textContent}`);
+  assert.match(termsNote.textContent, /accept the booking terms/i, `expected the mandatory-terms message right next to the checkbox, got:\n${termsNote.textContent}`);
+  assert.equal(status.textContent, "", "expected the bottom status area to stay empty for this specific error — the message belongs next to the checkbox, not at the bottom");
   assert.equal(
     context.window.location.href,
     "http://test/",
@@ -545,7 +558,7 @@ test("submit: an otherwise-complete, valid booking is BLOCKED when the terms che
   );
 });
 
-test("submit: the same booking proceeds to Stripe checkout once the terms checkbox is checked", async () => {
+test("submit: the same booking proceeds to Stripe checkout once the terms checkbox is checked and the address is complete", async () => {
   const rates = buildRates();
   const { context, documentStub } = buildContext(buildAvailabilityPayload(rates));
   await init(context, documentStub);
@@ -557,12 +570,150 @@ test("submit: the same booking proceeds to Stripe checkout once the terms checkb
   documentStub.getElementById("guest-phone").value = "";
   documentStub.getElementById("guest-message").value = "";
   documentStub.getElementById("terms-accept").checked = true;
+  documentStub.getElementById("guest-address-line1").value = "1 Rue de la Paix";
+  documentStub.getElementById("guest-address-postal").value = "19230";
+  documentStub.getElementById("guest-address-city").value = "Troche";
+  documentStub.getElementById("guest-address-country").value = "FR";
   const fakeEvent = { preventDefault() {} };
   await context.window.AE_BOOKING.submit(fakeEvent);
   assert.equal(
     context.window.location.href,
     "https://stripe.example/test-session",
-    "a checked terms box must let the booking proceed to the Stripe checkout redirect"
+    "a checked terms box and a complete address must let the booking proceed to the Stripe checkout redirect"
+  );
+});
+
+// ---- address gate (self-check-in direct rental needs it on file before
+// payment) — mirrors the terms-checkbox tests above: blocked while
+// incomplete, with the message right next to the address fields, and
+// proceeds once complete. Postal code specifically is only required where
+// the selected country actually uses one (see COUNTRIES_WITHOUT_POSTAL_CODE
+// in assets/booking.js / _lib/countries.mjs).
+test("submit: BLOCKED when the address is incomplete, with the error shown right next to the address fields, not at the bottom", async () => {
+  const rates = buildRates();
+  const { context, documentStub } = buildContext(buildAvailabilityPayload(rates));
+  await init(context, documentStub);
+  await gotoMonth(context, documentStub, "june 2027");
+  context.window.AE_BOOKING.pickDate("2027-06-18");
+  context.window.AE_BOOKING.pickDate("2027-06-23");
+  documentStub.getElementById("guest-name").value = "Test Guest";
+  documentStub.getElementById("guest-email").value = "guest@example.com";
+  documentStub.getElementById("terms-accept").checked = true;
+  // Deliberately left blank: line1, city, country.
+  const fakeEvent = { preventDefault() {} };
+  await context.window.AE_BOOKING.submit(fakeEvent);
+  const addressNote = documentStub.getElementById("ae-address-note");
+  const status = documentStub.getElementById("ae-booking-status");
+  assert.notEqual(addressNote.textContent, "", "expected a mandatory-address message right next to the address fields");
+  assert.equal(status.textContent, "", "expected the bottom status area to stay empty for this specific error");
+  assert.equal(
+    context.window.location.href,
+    "http://test/",
+    "submission must not proceed to Stripe checkout with an incomplete address"
+  );
+});
+
+test("submit: a country without postal codes (e.g. Hong Kong) does not block submission over a blank postal code", async () => {
+  const rates = buildRates();
+  const { context, documentStub } = buildContext(buildAvailabilityPayload(rates));
+  await init(context, documentStub);
+  await gotoMonth(context, documentStub, "june 2027");
+  context.window.AE_BOOKING.pickDate("2027-06-18");
+  context.window.AE_BOOKING.pickDate("2027-06-23");
+  documentStub.getElementById("guest-name").value = "Test Guest";
+  documentStub.getElementById("guest-email").value = "guest@example.com";
+  documentStub.getElementById("terms-accept").checked = true;
+  documentStub.getElementById("guest-address-line1").value = "1 Nathan Road";
+  documentStub.getElementById("guest-address-postal").value = ""; // deliberately blank
+  documentStub.getElementById("guest-address-city").value = "Hong Kong";
+  documentStub.getElementById("guest-address-country").value = "HK";
+  const fakeEvent = { preventDefault() {} };
+  await context.window.AE_BOOKING.submit(fakeEvent);
+  assert.equal(
+    context.window.location.href,
+    "https://stripe.example/test-session",
+    "a country without postal codes must not require one to proceed"
+  );
+});
+
+test("submit: an invalid postal code format for a country with an exact digit count (FR) is rejected", async () => {
+  const rates = buildRates();
+  const { context, documentStub } = buildContext(buildAvailabilityPayload(rates));
+  await init(context, documentStub);
+  await gotoMonth(context, documentStub, "june 2027");
+  context.window.AE_BOOKING.pickDate("2027-06-18");
+  context.window.AE_BOOKING.pickDate("2027-06-23");
+  documentStub.getElementById("guest-name").value = "Test Guest";
+  documentStub.getElementById("guest-email").value = "guest@example.com";
+  documentStub.getElementById("terms-accept").checked = true;
+  documentStub.getElementById("guest-address-line1").value = "1 Rue de la Paix";
+  documentStub.getElementById("guest-address-postal").value = "AB12"; // not 5 digits
+  documentStub.getElementById("guest-address-city").value = "Troche";
+  documentStub.getElementById("guest-address-country").value = "FR";
+  const fakeEvent = { preventDefault() {} };
+  await context.window.AE_BOOKING.submit(fakeEvent);
+  const addressNote = documentStub.getElementById("ae-address-note");
+  assert.notEqual(addressNote.textContent, "", "expected an invalid-postal-code message");
+  assert.equal(
+    context.window.location.href,
+    "http://test/",
+    "submission must not proceed to Stripe checkout with an invalid postal code"
+  );
+});
+
+test("address: default country follows the page's own language (NL→NL, FR→FR, EN→GB) when the guest hasn't chosen one yet", async () => {
+  const expectations = { nl: "NL", fr: "FR", en: "GB" };
+  for (const [pageLang, expectedCountry] of Object.entries(expectations)) {
+    const rates = buildRates();
+    const { context, documentStub } = buildContext(buildAvailabilityPayload(rates));
+    context.window.AE_BOOKING.init(pageLang);
+    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => setTimeout(r, 0));
+    assert.equal(
+      documentStub.getElementById("guest-address-country").value,
+      expectedCountry,
+      `expected the ${pageLang} page to default the country select to ${expectedCountry}`
+    );
+  }
+});
+
+test("address: a country the guest already chose survives a language switch instead of being replaced by the new page's own default", async () => {
+  // Simulates landing on the NL page (whose own default would be "NL")
+  // via a language-switch link that carried a `country=DE` param — i.e.
+  // the guest had already picked Germany on the page they switched from
+  // (see currentStateParams()/wireLanguageSwitchLinks()). restoreStateFromURL()
+  // must read that into pendingCountryFromURL, and populateCountrySelect()
+  // must honor it over DEFAULT_COUNTRY_BY_LANG.nl.
+  const rates = buildRates();
+  const { context, documentStub } = buildContext(buildAvailabilityPayload(rates));
+  context.window.location.search = "?country=DE";
+  context.window.AE_BOOKING.init("nl");
+  await new Promise((r) => setTimeout(r, 0));
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(
+    documentStub.getElementById("guest-address-country").value,
+    "DE",
+    "expected the manually-chosen country carried in the URL to win over the nl page's own NL default"
+  );
+});
+
+test("address: with no country param in the URL, a previously-set value (e.g. the guest typed into the form before a re-render) is kept rather than reset to the language default", async () => {
+  const rates = buildRates();
+  const { context, documentStub } = buildContext(buildAvailabilityPayload(rates));
+  context.window.AE_BOOKING.init("fr");
+  await new Promise((r) => setTimeout(r, 0));
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(documentStub.getElementById("guest-address-country").value, "FR");
+  documentStub.getElementById("guest-address-country").value = "ES";
+  documentStub.getElementById("guest-address-country").fire("change");
+  // Re-running init (e.g. a defensive re-render) must not clobber a value
+  // the guest already interacted with back to the page's own default.
+  context.window.AE_BOOKING.init("fr");
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(
+    documentStub.getElementById("guest-address-country").value,
+    "ES",
+    "expected the guest's own choice to survive a re-render, not revert to the fr page's FR default"
   );
 });
 

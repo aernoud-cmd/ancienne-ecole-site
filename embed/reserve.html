@@ -136,7 +136,7 @@
 
     <div class="form-grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
       <div class="field">
-        <label for="guest-name">Full name</label>
+        <label for="guest-name">Full name (main renter)</label>
         <input class="input" type="text" id="guest-name" name="guest-name" required style="font-family: 'Work Sans', sans-serif;">
       </div>
       <div class="field">
@@ -155,6 +155,32 @@
       <textarea class="input" id="guest-message" name="guest-message" rows="3" style="font-family: 'Work Sans', sans-serif; resize: vertical;"></textarea>
     </div>
 
+    <div style="font-size:12px; text-transform:uppercase; letter-spacing:0.6px; color:var(--text-dim); margin-bottom:2px;">Address of the main renter</div>
+    <div style="font-size:12.5px; color:var(--text-dim); margin-bottom:12px;">For your booking and rental agreement.</div>
+    <div class="field" style="margin-bottom: 16px;">
+      <label for="guest-address-line1">Street and house number</label>
+      <input class="input" type="text" id="guest-address-line1" name="guest-address-line1" required style="font-family: 'Work Sans', sans-serif;">
+    </div>
+    <div class="field" style="margin-bottom: 16px;">
+      <label for="guest-address-line2">Apartment, suite, etc. (optional)</label>
+      <input class="input" type="text" id="guest-address-line2" name="guest-address-line2" style="font-family: 'Work Sans', sans-serif;">
+    </div>
+    <div class="form-grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+      <div class="field">
+        <label for="guest-address-postal" id="ae-postal-code-label">Postal code</label>
+        <input class="input" type="text" id="guest-address-postal" name="guest-address-postal" style="font-family: 'Work Sans', sans-serif;">
+      </div>
+      <div class="field">
+        <label for="guest-address-city">City</label>
+        <input class="input" type="text" id="guest-address-city" name="guest-address-city" required style="font-family: 'Work Sans', sans-serif;">
+      </div>
+    </div>
+    <div class="field" style="margin-bottom: 6px;">
+      <label for="guest-address-country">Country</label>
+      <select class="input" id="guest-address-country" name="guest-address-country" required style="font-family: 'Work Sans', sans-serif;"></select>
+    </div>
+    <div id="ae-address-note" role="alert" style="font-size:12.5px; margin-bottom:16px; min-height:16px;"></div>
+
     <div class="field" style="margin-bottom: 18px;">
       <details style="border:1px solid var(--line); border-radius:2px; padding:10px 14px; margin-bottom:10px;">
         <summary style="cursor:pointer; font-size:13px; color:var(--text-dim); letter-spacing:0.3px;">Booking terms, cancellation &amp; deposit</summary>
@@ -164,6 +190,7 @@
         <input type="checkbox" id="terms-accept" style="margin-top:3px;">
         <span>I have read and accept <a href="https://ancienne-ecole.rent/en/the-small-print/" target="_blank" rel="noopener noreferrer" style="text-decoration:underline;">the small print</a>, including the cancellation terms.</span>
       </label>
+      <div id="ae-terms-note" role="alert" style="font-size:12.5px; margin-top:6px; min-height:16px;"></div>
     </div>
 
     <button class="btn-primary" type="submit" id="ae-booking-submit">Proceed to secure payment</button>
