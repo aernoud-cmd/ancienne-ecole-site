@@ -85,6 +85,49 @@ function quoteTable(q, lang = "en") {
     </table>`;
 }
 
+const SUMMARY_LABELS = {
+  en: { checkin: "Check-in", checkout: "Check-out", guests: "Guests" },
+  fr: { checkin: "Arrivée", checkout: "Départ", guests: "Voyageurs" },
+  nl: { checkin: "Aankomst", checkout: "Vertrek", guests: "Gasten" },
+};
+
+function guestsLabel(b, lang) {
+  const adultsWord = { en: "adult(s)", fr: "adulte(s)", nl: "volwassene(n)" }[lang] || "adult(s)";
+  const childrenWord = { en: "child(ren)", fr: "enfant(s)", nl: "kind(eren)" }[lang] || "child(ren)";
+  return `${b.adults} ${adultsWord}${b.children ? ` + ${b.children} ${childrenWord}` : ""}`;
+}
+
+// Small "at a glance" summary (dates + guests) shown above the price
+// breakdown in the paid-confirmation email — separate from quoteTable()
+// above, which only covers the price lines.
+export function bookingSummaryTable(b, lang = "en") {
+  const t = SUMMARY_LABELS[lang] || SUMMARY_LABELS.en;
+  return `
+    <table style="border-collapse:collapse; margin: 8px 0 4px; font-size: 13.5px;">
+      <tr><td style="padding:2px 16px 2px 0;color:#888;">${t.checkin}</td><td><b>${b.checkin}</b></td></tr>
+      <tr><td style="padding:2px 16px 2px 0;color:#888;">${t.checkout}</td><td><b>${b.checkout}</b></td></tr>
+      <tr><td style="padding:2px 16px 2px 0;color:#888;">${t.guests}</td><td>${guestsLabel(b, lang)}</td></tr>
+    </table>`;
+}
+
+// "De kleine lettertjes" / "The small print" / "Les petites lignes" — the
+// three WordPress pages Codex built, one per guest language. The
+// paid-confirmation email below links to the guest's own language, rather
+// than attaching anything: no PDF is fetched, stored, or shipped by this
+// codebase. Keep this the single place these three URLs are edited.
+export const TERMS_PAGE_URL = {
+  nl: "https://ancienne-ecole.rent/de-kleine-lettertjes/",
+  en: "https://ancienne-ecole.rent/en/the-small-print/",
+  fr: "https://ancienne-ecole.rent/fr/les-petites-lignes/",
+};
+const TERMS_LINK_TEXT = { nl: "De kleine lettertjes", en: "The small print", fr: "Les petites lignes" };
+
+function termsLink(lang) {
+  const url = TERMS_PAGE_URL[lang] || TERMS_PAGE_URL.en;
+  const text = TERMS_LINK_TEXT[lang] || TERMS_LINK_TEXT.en;
+  return `<a href="${url}">${text}</a>`;
+}
+
 export async function sendOwnerBookingAlert(booking) {
   const results = { email: null, whatsapp: null };
   const base = siteBaseUrl();
@@ -161,7 +204,7 @@ export async function sendOwnerBookingAlert(booking) {
   return results;
 }
 
-const GUEST_COPY = {
+export const GUEST_COPY = {
   en: {
     received: {
       subject: "We've received your booking request — L'Ancienne École",
@@ -185,7 +228,10 @@ const GUEST_COPY = {
     paid: {
       subject: "Payment received — you're all set! L'Ancienne École",
       body: (b) =>
-        `<p>Thank you, ${b.name} — we've received your payment for <b>${b.checkin} to ${b.checkout}</b>. Your stay is fully booked and paid.</p>
+        `<p>Thank you for your booking, ${b.name}.</p>
+         <p>Below you'll find a summary of your booking. Our terms and conditions are available via the link ${termsLink("en")}.</p>
+         ${bookingSummaryTable(b, "en")}
+         ${quoteTable(b.quote, "en")}
          <p>We look forward to welcoming you!</p>`,
     },
     declined: {
@@ -246,7 +292,10 @@ const GUEST_COPY = {
     paid: {
       subject: "Paiement reçu — c'est confirmé ! L'Ancienne École",
       body: (b) =>
-        `<p>Merci, ${b.name} — nous avons bien reçu votre paiement pour le séjour du <b>${b.checkin} au ${b.checkout}</b>. Votre réservation est confirmée et payée.</p>
+        `<p>Merci pour votre réservation, ${b.name}.</p>
+         <p>Vous trouverez ci-dessous le récapitulatif de votre réservation. Vous trouverez nos conditions générales via le lien ${termsLink("fr")}.</p>
+         ${bookingSummaryTable(b, "fr")}
+         ${quoteTable(b.quote, "fr")}
          <p>Nous avons hâte de vous accueillir !</p>`,
     },
     declined: {
@@ -307,7 +356,10 @@ const GUEST_COPY = {
     paid: {
       subject: "Betaling ontvangen — je zit goed! L'Ancienne École",
       body: (b) =>
-        `<p>Dank je, ${b.name} — we hebben je betaling ontvangen voor <b>${b.checkin} t/m ${b.checkout}</b>. Je boeking is volledig bevestigd en betaald.</p>
+        `<p>Dank u wel voor uw boeking.</p>
+         <p>Hieronder treft u de samenvatting van uw boeking aan. Onze algemene voorwaarden vindt u via de link ${termsLink("nl")}.</p>
+         ${bookingSummaryTable(b, "nl")}
+         ${quoteTable(b.quote, "nl")}
          <p>We kijken ernaar uit je te verwelkomen!</p>`,
     },
     declined: {
@@ -352,6 +404,7 @@ export async function sendGuestEmail(booking, kind) {
   if (!resend) return "skipped (RESEND_API_KEY not set)";
   const lang = GUEST_COPY[booking.lang] ? booking.lang : "en";
   const copy = GUEST_COPY[lang][kind];
+
   try {
     await resend.emails.send({
       from: process.env.NOTIFY_FROM_EMAIL || "L'Ancienne École <bookings@ancienne-ecole.rent>",

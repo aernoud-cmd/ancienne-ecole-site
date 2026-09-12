@@ -55,6 +55,7 @@ function makeElement(all) {
     querySelectorAll() { return []; },
     querySelector() { return null; },
     closest() { return null; },
+    focus() {},
     classList: { add() {}, remove() {}, contains() { return false; } },
   };
   return el;
@@ -511,6 +512,58 @@ test("submit: a complete, genuinely valid selection does not trigger the calenda
   await context.window.AE_BOOKING.submit(fakeEvent);
   const note = documentStub.getElementById("ae-cal-minstay-note");
   assert.doesNotMatch(note.textContent, /already booked|select both/i, `expected no selection-error text after a valid, complete booking submit\n${note.textContent}`);
+});
+
+// ---- "kleine lettertjes" terms checkbox: still genuinely mandatory -------
+// The checkbox's LABEL/LINK markup changed (assets/*/reserve.html), but the
+// gate itself lives here in submitBooking() and was deliberately left
+// untouched. These two tests prove submission is still blocked while the
+// (default-unchecked) box is unchecked, and still proceeds once it is
+// checked — i.e. the new label/link wiring didn't quietly break the
+// existing required-acceptance behaviour.
+test("submit: an otherwise-complete, valid booking is BLOCKED when the terms checkbox is left unchecked (its default state)", async () => {
+  const rates = buildRates();
+  const { context, documentStub } = buildContext(buildAvailabilityPayload(rates));
+  await init(context, documentStub);
+  await gotoMonth(context, documentStub, "june 2027");
+  context.window.AE_BOOKING.pickDate("2027-06-18");
+  context.window.AE_BOOKING.pickDate("2027-06-23");
+  documentStub.getElementById("guest-name").value = "Test Guest";
+  documentStub.getElementById("guest-email").value = "guest@example.com";
+  documentStub.getElementById("guest-phone").value = "";
+  documentStub.getElementById("guest-message").value = "";
+  const termsEl = documentStub.getElementById("terms-accept");
+  assert.ok(!termsEl.checked, "the fake terms checkbox must default to unchecked, same as the real one");
+  const fakeEvent = { preventDefault() {} };
+  await context.window.AE_BOOKING.submit(fakeEvent);
+  const status = documentStub.getElementById("ae-booking-status");
+  assert.match(status.textContent, /accept the booking terms/i, `expected the mandatory-terms message, got:\n${status.textContent}`);
+  assert.equal(
+    context.window.location.href,
+    "http://test/",
+    "submission must not proceed to Stripe checkout while terms are unaccepted"
+  );
+});
+
+test("submit: the same booking proceeds to Stripe checkout once the terms checkbox is checked", async () => {
+  const rates = buildRates();
+  const { context, documentStub } = buildContext(buildAvailabilityPayload(rates));
+  await init(context, documentStub);
+  await gotoMonth(context, documentStub, "june 2027");
+  context.window.AE_BOOKING.pickDate("2027-06-18");
+  context.window.AE_BOOKING.pickDate("2027-06-23");
+  documentStub.getElementById("guest-name").value = "Test Guest";
+  documentStub.getElementById("guest-email").value = "guest@example.com";
+  documentStub.getElementById("guest-phone").value = "";
+  documentStub.getElementById("guest-message").value = "";
+  documentStub.getElementById("terms-accept").checked = true;
+  const fakeEvent = { preventDefault() {} };
+  await context.window.AE_BOOKING.submit(fakeEvent);
+  assert.equal(
+    context.window.location.href,
+    "https://stripe.example/test-session",
+    "a checked terms box must let the booking proceed to the Stripe checkout redirect"
+  );
 });
 
 // ---- direct regression test for the live bug report: "na het kiezen van
