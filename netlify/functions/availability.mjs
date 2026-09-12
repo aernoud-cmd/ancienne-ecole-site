@@ -14,10 +14,10 @@ import { datesInclusive } from "./_lib/dates.mjs";
 const HORIZON_DAYS = 545; // ~18 months
 
 export default async () => {
-  const settings = await getPricingSettings();
+  const settings = await getPricingSettings({ strong: true });
   const [{ busyNights, pendingNights, ownBlockedNights }, rates] = await Promise.all([
-    computeAvailability(settings),
-    getAllRates(),
+    computeAvailability(settings, { strong: true }),
+    getAllRates({ strong: true }),
   ]);
 
   const today = new Date();
@@ -82,7 +82,7 @@ export default async () => {
     {
       headers: {
         "content-type": "application/json",
-        "cache-control": "public, max-age=120",
+        "cache-control": "no-store",
       },
     }
   );

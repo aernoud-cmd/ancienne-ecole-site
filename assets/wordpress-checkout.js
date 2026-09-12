@@ -14,3 +14,17 @@
     } catch (_) { /* Ignore malformed messages. */ }
   });
 })();
+
+// Restore Stripe's return state inside the embedded module, in the site's layout.
+(function () {
+  var params = new URLSearchParams(window.location.search);
+  var booking = params.get('booking');
+  var pmt = params.get('pmt');
+  var frame = document.getElementById('ae-booking-iframe');
+  if (!frame || !booking || !['return', 'cancelled'].includes(pmt)) return;
+  var url = new URL(frame.src);
+  if (url.origin !== 'https://ancienne-ecole-troche.netlify.app') return;
+  url.searchParams.set('booking', booking);
+  url.searchParams.set('pmt', pmt);
+  frame.src = url.href;
+})();

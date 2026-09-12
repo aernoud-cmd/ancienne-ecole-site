@@ -1473,7 +1473,7 @@
     availabilityLoading = true;
     renderAvailabilityBanner();
     try {
-      const res = await fetch("/.netlify/functions/availability");
+      const res = await fetch("/.netlify/functions/availability", { cache: "no-store" });
       if (!res.ok) throw new Error(`availability endpoint returned HTTP ${res.status}`);
       const data = await res.json();
       const shapeOk =
@@ -1955,6 +1955,12 @@
         const data = await res.json();
         if (res.ok && data.ok) {
           if (data.status === "confirmed" && data.paid) {
+            selStart = null;
+            selEnd = null;
+            const arrival = new Date(data.checkin + "T12:00:00");
+            viewYear = arrival.getFullYear();
+            viewMonth = arrival.getMonth();
+            await loadAvailability();
             showSuccess(t.paymentConfirmedTitle, t.paymentConfirmedBody(data.checkin, data.checkout));
             cleanUrl();
             return;
@@ -1991,8 +1997,7 @@
       restoreStateFromURL();
       wireLanguageSwitchLinks();
       populateCountrySelect();
-      loadAvailability();
-      checkPostRedirectStatus();
+      loadAvailability().then(() => checkPostRedirectStatus());
 
       const totalEl = document.getElementById("total-guests");
       const childrenEl = document.getElementById("children");

@@ -16,6 +16,11 @@ export function siteBaseUrl() {
   return process.env.URL || process.env.DEPLOY_PRIME_URL || "https://ancienne-ecole.rent";
 }
 
+function senderAddress() {
+  const address = process.env.NOTIFY_FROM_EMAIL || "onboarding@resend.dev";
+  return address.includes("<") ? address : `Aernoud Florijn (L’Ancienne École) <${address}>`;
+}
+
 function resendClient() {
   const key = process.env.RESEND_API_KEY;
   if (!key) return null;
@@ -194,7 +199,7 @@ export function bookingSummaryTable(b, lang = "en") {
   return `
     <table style="border-collapse:collapse; margin: 8px 0 4px; font-size: 13.5px; width:100%; max-width:420px;">
       ${row(t.name, escapeHtml(b.name))}
-      ${row(t.reference, `<span style="font-family:monospace; font-size:12px;">${escapeHtml(b.id)}</span>`)}
+      ${row(t.reference, `<span style="font-family:monospace; font-size:12px;">${escapeHtml(b.reference || b.id)}</span>`)}
       ${address ? row(t.address, address) : ""}
       ${row(t.checkin, `<b>${formatLongDate(b.checkin, lang)}</b><br><span style="color:#888; font-size:12.5px;">${t.checkinTime}</span>`)}
       ${row(t.checkout, `<b>${formatLongDate(b.checkout, lang)}</b><br><span style="color:#888; font-size:12.5px;">${t.checkoutTime}</span>`)}
@@ -232,7 +237,7 @@ export async function sendOwnerBookingAlert(booking) {
   if (resend && ownerEmail) {
     try {
       await resend.emails.send({
-        from: process.env.NOTIFY_FROM_EMAIL || "L'Ancienne École <bookings@ancienne-ecole.rent>",
+        from: senderAddress(),
         to: ownerEmail,
         subject: `New booking REQUEST — ${booking.checkin} to ${booking.checkout}`,
         html: `
@@ -297,6 +302,15 @@ export async function sendOwnerBookingAlert(booking) {
   return results;
 }
 
+export function guestClosing(lang) {
+  const copy = {
+    nl: ['We kijken ernaar uit je te verwelkomen! Twee weken voor aankomst ontvang je de laatste informatie, inclusief het handboek en uitleg over zelf inchecken.', 'Heb je vragen? Bel of mail me gerust.', 'Met vriendelijke groet'],
+    en: ['We look forward to welcoming you! Two weeks before arrival, you will receive the final information, including the house handbook and self check-in instructions.', 'Any questions? Please call or email me.', 'Kind regards'],
+    fr: ['Nous avons hâte de vous accueillir ! Deux semaines avant votre arrivée, vous recevrez les dernières informations, notamment le guide de la maison et les instructions pour votre arrivée autonome.', 'Des questions ? Appelez-moi ou écrivez-moi.', 'Bien cordialement'],
+  }[lang];
+  return `<p>${copy[0]}</p><p>${copy[1]}</p><p>${copy[2]},<br><strong>Aernoud Florijn</strong><br>L’Ancienne École<br><a href="tel:+31654244444">+31 6 5424 4444</a><br><a href="mailto:aernoud@florijn.com">aernoud@florijn.com</a></p><img src="https://ancienne-ecole-troche.netlify.app/assets/logo-lockup.png" alt="L’Ancienne École" width="150" style="display:block;width:150px;height:auto;background:#111;padding:12px;">`;
+}
+
 export const GUEST_COPY = {
   en: {
     received: {
@@ -325,7 +339,7 @@ export const GUEST_COPY = {
          <p>Below you'll find a summary of your booking. Our terms and conditions are available via the link ${termsLink("en")}.</p>
          ${bookingSummaryTable(b, "en")}
          ${quoteTable(b.quote, "en")}
-         <p>We look forward to welcoming you!</p>`,
+         ${guestClosing("en")}`,
     },
     declined: {
       subject: "About your request — L'Ancienne École",
@@ -389,7 +403,7 @@ export const GUEST_COPY = {
          <p>Vous trouverez ci-dessous le récapitulatif de votre réservation. Vous trouverez nos conditions générales via le lien ${termsLink("fr")}.</p>
          ${bookingSummaryTable(b, "fr")}
          ${quoteTable(b.quote, "fr")}
-         <p>Nous avons hâte de vous accueillir !</p>`,
+         ${guestClosing("fr")}`,
     },
     declined: {
       subject: "Concernant votre demande — L'Ancienne École",
@@ -453,7 +467,7 @@ export const GUEST_COPY = {
          <p>Hieronder treft u de samenvatting van uw boeking aan. Onze algemene voorwaarden vindt u via de link ${termsLink("nl")}.</p>
          ${bookingSummaryTable(b, "nl")}
          ${quoteTable(b.quote, "nl")}
-         <p>We kijken ernaar uit je te verwelkomen!</p>`,
+         ${guestClosing("nl")}`,
     },
     declined: {
       subject: "Over je aanvraag — L'Ancienne École",
@@ -500,9 +514,10 @@ export async function sendGuestEmail(booking, kind) {
 
   try {
     await resend.emails.send({
-      from: process.env.NOTIFY_FROM_EMAIL || "L'Ancienne École <bookings@ancienne-ecole.rent>",
+      from: senderAddress(),
       to: booking.email,
-      subject: copy.subject,
+      replyTo: "aernoud@florijn.com",
+      subject: `${copy.subject}${booking.reference ? " · " + booking.reference : ""}`,
       html: `<div style="font-family: sans-serif; max-width: 520px;">${copy.body(booking)}</div>`,
     });
     return "sent";

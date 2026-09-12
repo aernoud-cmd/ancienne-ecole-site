@@ -804,3 +804,25 @@ test("hosted Checkout leaves the WordPress iframe via parent with reusable fallb
   assert.equal(link.target,"_top");
   assert.equal(link.href,messages[0][0].checkoutUrl);
 });
+test('confirmed return reloads availability and clears the previous date selection',async()=>{
+ const payload={busyNights:[],pendingNights:[],noPriceNights:[],capacity:{maxAdults:8,maxChildren:2,maxTotalGuests:10},defaultMinNights:5};
+ const {context,documentStub}=buildContext(payload);
+ context.window.location.search='?booking=test&pmt=return';
+ context.window.location.pathname='/embed/nl/reserve.html';
+ context.window.history={replaceState(){}};
+ let reads=0;
+ context.fetch=async(url,opts)=>{
+  if(String(url).includes('booking-status'))return {ok:true,json:async()=>({ok:true,status:'confirmed',paid:true,checkin:'2027-05-01',checkout:'2027-05-07'})};
+  if(String(url).includes('availability')){
+   assert.equal(opts.cache,'no-store'); reads++;
+   return {ok:true,json:async()=>({...payload,busyNights:reads>1?['2027-05-01','2027-05-02','2027-05-03','2027-05-04','2027-05-05','2027-05-06']:[]})};
+  }
+  return {ok:true,json:async()=>({})};
+ };
+ await init(context,documentStub);
+ assert.equal(reads,2);
+ assert.equal(isClickable(cellFor(documentStub,'2027-05-01')),false);
+ assert.equal(isClickable(cellFor(documentStub,'2027-05-06')),false);
+ assert.equal(isClickable(cellFor(documentStub,'2027-05-07')),true);
+ assert.match(documentStub.getElementById('ae-booking-form').innerHTML,/Payment received/);
+});

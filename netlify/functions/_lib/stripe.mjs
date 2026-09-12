@@ -213,7 +213,11 @@ export async function createCheckoutSession(booking, { successUrl, cancelUrl, ho
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
     line_items: stayLineItems(booking),
-    metadata: { booking_id: booking.id },
+    metadata: { booking_id: booking.id, booking_reference: booking.reference || "" },
+    payment_intent_data: {
+      description: `L’Ancienne École · ${booking.checkin} – ${booking.checkout} · ${booking.name} · ${booking.reference || ""}`,
+      metadata: { booking_id: booking.id, booking_reference: booking.reference || "", checkin: booking.checkin, checkout: booking.checkout },
+    },
     success_url: successUrl,
     cancel_url: cancelUrl,
     expires_at: expiresAt,

@@ -27,6 +27,7 @@ export default async (req) => {
         b.paid && paidTotalCents != null ? Math.max(0, paidTotalCents - alreadyRefundedCents) : null;
       return {
         id: b.id,
+        reference: b.reference,
         checkin: b.checkin,
         checkout: b.checkout,
         nights: b.nights,

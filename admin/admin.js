@@ -205,7 +205,7 @@
       const paid = b.paid ? `<span class="status-paid-badge">Betaald ✓</span>` : (b.status === "confirmed" ? "Nog niet betaald" : "—");
       const isOpen = openBookingId === b.id;
       const row = `<tr class="admin-booking-row${isOpen ? " is-open" : ""}" data-id="${b.id}">
-        <td>${fmtDateNL(b.checkin)} → ${fmtDateNL(b.checkout)} (${b.nights}n)</td>
+        <td><strong>${escapeHtml(b.reference || "")}</strong><br>${fmtDateNL(b.checkin)} → ${fmtDateNL(b.checkout)} (${b.nights}n)</td>
         <td>${escapeHtml(b.name)}<br><span class="admin-dim admin-small">${escapeHtml(b.email)}</span></td>
         <td>${b.adults} volw.${b.children ? `, ${b.children} kind(eren)` : ""}</td>
         <td>${pill}</td>

@@ -8,6 +8,7 @@
 //   "night-locks" — one tiny record per calendar night, used only to narrow
 //                   the window in which two simultaneous requests could
 //                   both think the same night is free (see claimNights()).
+import { withReferences } from "./bookingReference.mjs";
 import { getStore } from "@netlify/blobs";
 import { mergeWithDefaults } from "./pricingDefaults.mjs";
 
@@ -36,7 +37,9 @@ const STRONG = { consistency: "strong" };
 
 export async function getBooking(id, { strong = false } = {}) {
   const store = bookingsStore();
-  return store.get(id, { type: "json", ...(strong ? STRONG : {}) });
+  const booking = await store.get(id, { type: "json", ...(strong ? STRONG : {}) });
+  if (booking && !booking.reference) return (await listBookings({ strong })).find(b => b.id === id) || booking;
+  return booking;
 }
 
 export async function saveBooking(id, data) {
@@ -65,7 +68,7 @@ export async function listBookings({ strong = false } = {}) {
   const all = await Promise.all(
     blobs.map((b) => store.get(b.key, { type: "json", ...(strong ? STRONG : {}) }))
   );
-  return all.filter(Boolean);
+  return withReferences(all.filter(Boolean));
 }
 
 export async function getAirbnbBusyNights({ strong = false } = {}) {

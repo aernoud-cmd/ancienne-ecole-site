@@ -13,6 +13,7 @@ import { randomUUID } from "node:crypto";
 import {
   getPricingSettings,
   getAllRates,
+  listBookings,
   saveBooking,
   claimNights,
   releaseNights,
@@ -21,7 +22,7 @@ import {
 import { computeAvailability } from "./_lib/availability.mjs";
 import { isValidISODate, nightsBetween } from "./_lib/dates.mjs";
 import { createCheckoutSession } from "./_lib/stripe.mjs";
-import { siteBaseUrl } from "./_lib/notify.mjs";
+import { nextReference } from "./_lib/bookingReference.mjs";
 import { calculateQuote, derivePartySize, QuoteError } from "./_lib/pricing.mjs";
 import { CURRENT_TERMS_VERSION } from "./_lib/terms.mjs";
 import { validateAddress } from "./_lib/countries.mjs";
@@ -117,6 +118,7 @@ export default async (req) => {
   }
 
   const id = randomUUID();
+  const reference = nextReference({ checkin, nights: quote.nights }, await listBookings({ strong: true }));
 
   // Best-effort claim on every night in the stay, to narrow (not, honestly,
   // eliminate) the window where two simultaneous submissions could both
@@ -135,6 +137,7 @@ export default async (req) => {
 
   const booking = {
     id,
+    reference,
     checkin,
     checkout,
     nights: quote.nights,
@@ -193,8 +196,8 @@ export default async (req) => {
     throw e;
   }
 
-  const base = siteBaseUrl();
-  const returnPath = { en: "/reserve.html", fr: "/fr/reserve.html", nl: "/nl/reserve.html" }[bookingLang];
+  const base = "https://ancienne-ecole.rent";
+  const returnPath = { en: "/en/prices-planning/", fr: "/fr/reserver/", nl: "/prijzen-planning/" }[bookingLang];
   let checkoutUrl;
   try {
     const session = await createCheckoutSession(booking, {
