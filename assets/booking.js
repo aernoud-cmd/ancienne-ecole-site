@@ -814,6 +814,8 @@
     const childrenEl = document.getElementById("children");
     if (totalEl) p.set("totalGuests", totalEl.value);
     if (childrenEl) p.set("children", childrenEl.value);
+    const petsEl = document.getElementById("pets");
+    if (petsEl) p.set("pets", petsEl.value);
     // The country default depends on the page's OWN language (see
     // DEFAULT_COUNTRY_BY_LANG) — carrying it over unconditionally on a
     // language switch would fight that default. Only an explicit choice the
@@ -853,6 +855,8 @@
     const childrenEl = document.getElementById("children");
     if (tg && totalEl) totalEl.value = tg;
     if (c && childrenEl) childrenEl.value = c;
+    const petsEl = document.getElementById("pets");
+    if (petsEl && /^\d+$/.test(p.get("pets") || "")) petsEl.value = p.get("pets");
     const countryParam = p.get("country");
     if (countryParam && /^[A-Za-z]{2}$/.test(countryParam)) pendingCountryFromURL = countryParam.toUpperCase();
     if (selStart) {
@@ -1414,6 +1418,12 @@
 
   function pickDate(dateISO) {
     if (!availabilityOk) return; // defense in depth — the grid shouldn't render clickable cells at all in this state
+    // Tapping the selected arrival again resets the range, including the
+    // minimum-stay restrictions on potential departure dates.
+    if (dateISO === selStart) {
+      clearSelection();
+      return;
+    }
     if (!selStart || (selStart && selEnd) || dateISO <= selStart) {
       selStart = dateISO;
       selEnd = null;
@@ -1526,7 +1536,7 @@
     // display/capacity-check purposes — the server derives and validates
     // this itself from the same totalGuests/children pair, never trusting
     // this value.
-    return { totalGuests, children, adults: Math.max(0, totalGuests - children) };
+    return { totalGuests, children, pets: Number(document.getElementById("pets")?.value || 0), adults: Math.max(0, totalGuests - children) };
   }
 
   // Fetches the live price whenever dates or party size are complete, using
@@ -1550,12 +1560,12 @@
       return;
     }
 
-    const { totalGuests, children } = getPartySize();
+    const { totalGuests, children, pets } = getPartySize();
     const mySeq = ++quoteRequestSeq;
     breakdown.style.opacity = "0.5";
 
     try {
-      const params = new URLSearchParams({ checkin: selStart, checkout: selEnd, totalGuests, children });
+      const params = new URLSearchParams({ checkin: selStart, checkout: selEnd, totalGuests, children, pets });
       const res = await fetch(`/.netlify/functions/quote?${params.toString()}`);
       const data = await res.json();
       if (mySeq !== quoteRequestSeq) return; // a newer request has since started
@@ -1632,6 +1642,7 @@
       ? t.linenPerWeek(totalGuests, q.linenWeeks, fmtMoneyCents(perPersonLinen, q.currency))
       : t.linen(totalGuests, fmtMoneyCents(perPersonLinen, q.currency));
     html += row(linenLabel, fmtMoneyCents(q.linenFeeCents, q.currency), { dim: true });
+    if (q.petFeeCents) html += row(`${({en:"Pets",nl:"Huisdieren",fr:"Animaux"})[lang]} (${q.pets} × ${fmtMoneyCents(q.petFeePerPetCents, q.currency)})`, fmtMoneyCents(q.petFeeCents, q.currency), { dim: true });
     html += row(t.cleaning, fmtMoneyCents(q.cleaningFeeCents, q.currency), { dim: true });
     html += row(t.tax, fmtMoneyCents(q.touristTaxCents, q.currency), { dim: true });
     const taxNote = q.touristTaxMode === "fixed_per_person_per_night"
@@ -1712,12 +1723,13 @@
     }
     showAddressNote("", false);
 
-    const { totalGuests, children } = getPartySize();
+    const { totalGuests, children, pets } = getPartySize();
     const payload = {
       checkin: selStart,
       checkout: selEnd,
       totalGuests,
       children,
+      pets,
       name,
       email,
       phone: document.getElementById("guest-phone").value.trim(),
@@ -1907,6 +1919,13 @@
   function showSuccess(title, body) {
     const form = document.getElementById("ae-booking-form");
     if (!form) return;
+    // The result is the first thing a returning guest needs to see.
+    const parent = form.parentNode;
+    parent.insertBefore(form, parent.firstChild);
+    if (parent.style) parent.style.flexWrap = "wrap";
+    form.style.flex = "0 0 100%";
+    form.style.width = "100%";
+    form.style.boxSizing = "border-box";
     form.innerHTML = `
       <div style="text-align:center; padding: 20px 0;" role="status" aria-live="polite">
         <div style="font-family:'Cormorant Garamond', serif; font-size: 28px; color: var(--gold); margin-bottom: 14px;">${title}</div>
@@ -2003,6 +2022,8 @@
       const childrenEl = document.getElementById("children");
       if (totalEl) totalEl.addEventListener("change", () => { populateChildrenSelect(); checkCapacity(); refreshQuote(); });
       if (childrenEl) childrenEl.addEventListener("change", refreshQuote);
+      const petsEl = document.getElementById("pets");
+      if (petsEl) petsEl.addEventListener("input", refreshQuote);
 
       const termsEl = document.getElementById("terms-accept");
       if (termsEl) termsEl.addEventListener("change", () => { if (termsEl.checked) showTermsNote("", false); });

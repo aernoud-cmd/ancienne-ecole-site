@@ -19,6 +19,7 @@ export default async (req) => {
   // re-validated below, never trusted from the client — see
   // _lib/pricing.mjs derivePartySize().
   const totalGuests = Number(url.searchParams.get("totalGuests") || 1);
+  const pets = Number(url.searchParams.get("pets") || 0);
   const children = Number(url.searchParams.get("children") || 0);
 
   if (!isValidISODate(checkin) || !isValidISODate(checkout) || checkin >= checkout) {
@@ -36,7 +37,7 @@ export default async (req) => {
     // _lib/pricing.mjs) previews correctly instead of showing a spurious
     // MIN_NIGHTS_NOT_MET error for a stay that book.mjs would actually accept.
     const { busyNights } = await computeAvailability(settings);
-    const quote = calculateQuote({ checkin, checkout, adults, children }, settings, rates, { busyNights });
+    const quote = calculateQuote({ checkin, checkout, adults, children, pets }, settings, rates, { busyNights });
     return json({ ok: true, quote });
   } catch (e) {
     if (e instanceof QuoteError) {

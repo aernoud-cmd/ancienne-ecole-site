@@ -207,7 +207,7 @@
       const row = `<tr class="admin-booking-row${isOpen ? " is-open" : ""}" data-id="${b.id}">
         <td><strong>${escapeHtml(b.reference || "")}</strong><br>${fmtDateNL(b.checkin)} → ${fmtDateNL(b.checkout)} (${b.nights}n)</td>
         <td>${escapeHtml(b.name)}<br><span class="admin-dim admin-small">${escapeHtml(b.email)}</span></td>
-        <td>${b.adults} volw.${b.children ? `, ${b.children} kind(eren)` : ""}</td>
+        <td>${b.adults} volw.${b.children ? `, ${b.children} kind(eren)` : ""}${b.pets ? `, ${b.pets} huisdier(en)` : ""}</td>
         <td>${pill}</td>
         <td>${paid}</td>
         <td>${b.totalCents != null ? fmtEuro(b.totalCents) : "—"}</td>
@@ -231,6 +231,7 @@
       ...(q.discountKind ? [[`Korting (${q.discountKind}, -${q.discountPercent}%)`, `-${fmtEuro(q.discountAmountCents)}`]] : []),
       ["Linnengoed", fmtEuro(q.linenFeeCents)],
       ["Schoonmaak", fmtEuro(q.cleaningFeeCents)],
+      ...(q.petFeeCents ? [[`Huisdieren (${q.pets} × €35)`, fmtEuro(q.petFeeCents)]] : []),
       ["Toeristenbelasting", fmtEuro(q.touristTaxCents)],
       ["Subtotaal verblijf", fmtEuro(q.totalCents)],
       ["Waarborgsom", fmtEuro(q.depositCents)],

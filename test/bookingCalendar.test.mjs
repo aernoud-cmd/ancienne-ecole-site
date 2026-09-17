@@ -463,6 +463,22 @@ test("calendar: the 'clear selection' link is offered once an arrival is picked,
   assert.ok(isClickable(cellAfterClear), "expected 2027-06-18 clickable again as a fresh arrival after clearing");
 });
 
+test("calendar: tapping the selected winter arrival clears it and allows the next day as a new arrival", async () => {
+  const { context, documentStub } = buildContext(buildAvailabilityPayload(buildRates()));
+  await init(context, documentStub);
+  await gotoMonth(context, documentStub, "february 2027");
+  const calendar = context.window.AE_BOOKING;
+  calendar.pickDate("2027-02-01");
+  assert.ok(isClickable(cellFor(documentStub, "2027-02-01")));
+  assert.ok(!isClickable(cellFor(documentStub, "2027-02-02")));
+  calendar.pickDate("2027-02-01");
+  assert.equal(documentStub.getElementById("ae-cal-nights").textContent, STRINGS_EN_selectRange());
+  assert.ok(isClickable(cellFor(documentStub, "2027-02-02")));
+  calendar.pickDate("2027-02-02");
+  assert.match(cellFor(documentStub, "2027-02-02"), /check-in/);
+  assert.ok(!isClickable(cellFor(documentStub, "2027-02-03")));
+});
+
 function STRINGS_EN_selectRange() {
   return "Select your check-in and check-out dates on the calendar";
 }

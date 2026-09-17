@@ -84,7 +84,7 @@ function fourNightGapException({ checkin, checkout, nights, arrivalMinNights, ra
  *   evaluate the exactly-4-free-nights exception above. Omit it and that
  *   exception simply never applies (every other rule is unaffected).
  */
-export function calculateQuote({ checkin, checkout, adults, children }, settings, rates, opts = {}) {
+export function calculateQuote({ checkin, checkout, adults, children, pets = 0 }, settings, rates, opts = {}) {
   const { busyNights = null } = opts;
   const nAdults = Number(adults);
   const nChildren = Number(children || 0);
@@ -92,6 +92,10 @@ export function calculateQuote({ checkin, checkout, adults, children }, settings
   if (!Number.isInteger(nAdults) || nAdults < 1 || !Number.isInteger(nChildren) || nChildren < 0) {
     throw new QuoteError("PARTY_INVALID");
   }
+  const nPets = Number(pets);
+  if (!Number.isSafeInteger(nPets) || nPets < 0 || !Number.isSafeInteger(nPets * 3500)) throw new QuoteError("PETS_INVALID");
+  const petFeePerPetCents = 3500; // Agreed: €35 per pet, once per booking.
+  const petFeeCents = nPets * petFeePerPetCents;
   const cap = settings.capacity;
   if (nAdults > cap.maxAdults || nChildren > cap.maxChildren || nAdults + nChildren > cap.maxTotalGuests) {
     throw new QuoteError("CAPACITY_EXCEEDED", {
@@ -254,7 +258,7 @@ export function calculateQuote({ checkin, checkout, adults, children }, settings
 
   const depositCents = settings.depositCents || 0;
 
-  const totalCents = rentalAfterDiscountCents + linenFeeCents + cleaningFeeCents + touristTaxCents;
+  const totalCents = rentalAfterDiscountCents + linenFeeCents + cleaningFeeCents + petFeeCents + touristTaxCents;
   const totalWithDepositCents = totalCents + depositCents;
 
   return {
@@ -262,6 +266,9 @@ export function calculateQuote({ checkin, checkout, adults, children }, settings
     nights: nNights,
     adults: nAdults,
     children: nChildren,
+    pets: nPets,
+    petFeePerPetCents,
+    petFeeCents,
     perNight, // [{date, priceCents}]
     // true only when this exact stay was let through below the arrival
     // date's normal minimum via the exactly-4-free-nights-between-two-

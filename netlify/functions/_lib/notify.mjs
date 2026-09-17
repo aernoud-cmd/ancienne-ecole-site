@@ -58,7 +58,7 @@ const QUOTE_LABELS = {
     deposit: "Caution remboursable (séparée)",
   },
   nl: {
-    rent: (n) => `Huur (${n} nachten)`,
+    rent: (n) => `Huur (${n} ${n === 1 ? "nacht" : "nachten"})`,
     linen: "Linnengoed",
     cleaning: "Eindschoonmaak",
     tax: "Toeristenbelasting",
@@ -76,6 +76,7 @@ function quoteTable(q, lang = "en") {
     rows.push([`${dl[q.discountKind]} (-${q.discountPercent}%)`, `-${fmtMoneyCents(q.discountAmountCents, q.currency)}`]);
   }
   rows.push([t.linen, fmtMoneyCents(q.linenFeeCents, q.currency)]);
+  if (q.petFeeCents) rows.push([`${({ en: "Pets", nl: "Huisdieren", fr: "Animaux" })[lang] || "Pets"} (${q.pets} × ${fmtMoneyCents(q.petFeePerPetCents, q.currency)})`, fmtMoneyCents(q.petFeeCents, q.currency)]);
   rows.push([t.cleaning, fmtMoneyCents(q.cleaningFeeCents, q.currency)]);
   rows.push([t.tax, fmtMoneyCents(q.touristTaxCents, q.currency)]);
   rows.push([`<b>${t.total}</b>`, `<b>${fmtMoneyCents(q.totalCents, q.currency)}</b>`]);
@@ -205,6 +206,7 @@ export function bookingSummaryTable(b, lang = "en") {
       ${row(t.checkout, `<b>${formatLongDate(b.checkout, lang)}</b><br><span style="color:#888; font-size:12.5px;">${t.checkoutTime}</span>`)}
       ${row(t.nights, t.nightsValue(b.nights))}
       ${row(t.guests, guestsLabel(b, lang))}
+      ${b.pets ? row(({ en: "Pets", nl: "Huisdieren", fr: "Animaux" })[lang] || "Pets", b.pets) : ""}
     </table>`;
 }
 

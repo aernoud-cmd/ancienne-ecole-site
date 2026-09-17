@@ -59,7 +59,7 @@ export async function createBookingPaymentLink(booking) {
   // plus linen and cleaning — the guest sees these itemized already in the
   // quote/confirmation email; the Stripe page shows the total per line, not
   // a full re-breakdown, to keep it simple).
-  const stayAmountCents = q.rentalAfterDiscountCents + q.linenFeeCents + q.cleaningFeeCents;
+  const stayAmountCents = q.rentalAfterDiscountCents + q.linenFeeCents + q.cleaningFeeCents + (q.petFeeCents || 0);
 
   const lineItems = [
     {
@@ -151,11 +151,11 @@ export function verifyWebhookSignature(rawBody, signatureHeader) {
 const CHECKOUT_MIN_MINUTES = 30; // Stripe's own hard floor for expires_at
 const CHECKOUT_MAX_MINUTES = 24 * 60; // Stripe's own hard ceiling
 
-function stayLineItems(booking) {
+export function stayLineItems(booking) {
   const t = LINE_LABELS[booking.lang] || LINE_LABELS.en;
   const q = booking.quote;
   const currency = (q.currency || "EUR").toLowerCase();
-  const stayAmountCents = q.rentalAfterDiscountCents + q.linenFeeCents + q.cleaningFeeCents;
+  const stayAmountCents = q.rentalAfterDiscountCents + q.linenFeeCents + q.cleaningFeeCents + (q.petFeeCents || 0);
 
   const lineItems = [
     {

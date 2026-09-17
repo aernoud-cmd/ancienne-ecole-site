@@ -45,7 +45,7 @@ export default async (req) => {
   // _lib/pricing.mjs derivePartySize(). `totalGuests` is the only name this
   // endpoint accepts now; there is no separate "adults" field in the request.
   const {
-    checkin, checkout, totalGuests, children, name, email, phone, message, lang, termsAccepted,
+    checkin, checkout, totalGuests, children, pets = 0, name, email, phone, message, lang, termsAccepted,
     // Main renter's address — direct-rental self-check-in needs this on file
     // before payment, not collected any other way. addressLine1 is the
     // street + house number combined (deliberately one free-text field, not
@@ -106,7 +106,7 @@ export default async (req) => {
   let quote, nAdults, nChildren;
   try {
     ({ adults: nAdults, children: nChildren } = derivePartySize({ totalGuests, children }));
-    quote = calculateQuote({ checkin, checkout, adults: nAdults, children: nChildren }, settings, rates, { busyNights });
+    quote = calculateQuote({ checkin, checkout, adults: nAdults, children: nChildren, pets }, settings, rates, { busyNights });
   } catch (e) {
     if (e instanceof QuoteError) return json({ ok: false, code: e.code, details: e.details }, 409);
     console.error("book.mjs: quote calculation failed:", e);
@@ -143,6 +143,7 @@ export default async (req) => {
     nights: quote.nights,
     adults: nAdults,
     children: nChildren,
+    pets: quote.pets,
     name: String(name).slice(0, 200),
     email: String(email).slice(0, 200),
     phone: phone ? String(phone).slice(0, 60) : "",

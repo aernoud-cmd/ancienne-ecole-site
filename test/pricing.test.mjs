@@ -624,3 +624,18 @@ test("derivePartySize: exactly all children (adults derived as 0) is allowed by 
   assert.equal(adults, 0);
   assert.equal(children, 2);
 });
+
+test("pets cost €35 each per booking, without linen, discount or tourist tax on that fee", () => {
+  const input = { checkin: "2027-06-12", checkout: "2027-06-19", adults: 4, children: 0 };
+  const plain = calculateQuote(input, baseSettings(), baseRates());
+  const pets = calculateQuote({ ...input, pets: 2 }, baseSettings(), baseRates());
+  assert.equal(pets.petFeeCents, 7000);
+  assert.equal(pets.pets, 2);
+  assert.equal(pets.totalWithDepositCents - plain.totalWithDepositCents, 7000);
+  assert.equal(pets.touristTaxCents, plain.touristTaxCents);
+  assert.equal(pets.linenFeeCents, plain.linenFeeCents);
+  assert.equal(pets.discountAmountCents, plain.discountAmountCents);
+  for (const count of [-1, 1.5, "invalid", Infinity]) {
+    assert.throws(() => calculateQuote({ ...input, pets: count }, baseSettings(), baseRates()), { code: "PETS_INVALID" });
+  }
+});
