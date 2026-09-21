@@ -4,7 +4,7 @@
 // place is what makes the expiry rule below apply consistently everywhere,
 // instead of five different endpoints each computing "busy" slightly
 // differently.
-import { getAirbnbBusyNights, listBookings, getAllRates } from "./store.mjs";
+import { getCalendarSnapshots, listBookings, getAllRates } from "./store.mjs";
 import { nightsBetween } from "./dates.mjs";
 import { roundNightlyPriceCents } from "./money.mjs";
 
@@ -76,11 +76,13 @@ export function effectiveStatus(booking, settings, now = Date.now()) {
  *   out of the busy set (used when re-validating that booking itself)
  */
 export async function computeAvailability(settings, { strong = false, excludeBookingId = null } = {}) {
-  const [airbnbNights, bookings, rates] = await Promise.all([
-    getAirbnbBusyNights({ strong }),
+  const [calendarSnapshots, bookings, rates] = await Promise.all([
+    getCalendarSnapshots({ strong }),
     listBookings({ strong }),
     getAllRates({ strong }),
   ]);
+  const externalNights = Object.values(calendarSnapshots).flatMap(snapshot => snapshot?.nights || []);
+  const airbnbNights = calendarSnapshots.airbnb?.nights || [];
   const now = Date.now();
   const withStatus = bookings.map((b) => ({ ...b, effectiveStatus: effectiveStatus(b, settings, now) }));
 
@@ -102,10 +104,12 @@ export async function computeAvailability(settings, { strong = false, excludeBoo
 
   const ownBlockedNights = new Set(ownBlockedNightsFromRates(rates));
 
-  const busyNights = new Set([...airbnbNights, ...confirmedNights, ...pendingNights, ...ownBlockedNights]);
+  const busyNights = new Set([...externalNights, ...confirmedNights, ...pendingNights, ...ownBlockedNights]);
 
   return {
     airbnbNights: new Set(airbnbNights),
+    calendarSnapshots,
+    externalNights: new Set(externalNights),
     confirmedNights,
     pendingNights,
     ownBlockedNights,

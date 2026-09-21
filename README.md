@@ -307,3 +307,15 @@ stay, accessibility, translated discount labels, etc.)
   be settable per period** rather than one global rule — flag if the
   simple global version isn't enough (e.g. only some seasons need
   Saturday-only changeovers).
+
+
+## Directe kalenderimport (21 september 2026)
+
+Private Netlify HTTPS-exportlinks: AIRBNB_ICAL_URL, BOOKING_ICAL_URL,
+VRBO_ICAL_URL, MICAZU_ICAL_URL. Niet in Git opslaan. De bestaande sync-airbnb
+taak ververst alle ingestelde bronnen elke drie uur; /admin toont per bron
+de status en kan direct synchroniseren. Fouten behouden bestaande blokkades.
+Een geldige lege export verwijdert oude blokkades van die bron. Vertrek is
+exclusief. De eigen export bevat alleen directe boekingen. Gebruik bij OTA
+exports waar mogelijk uitsluitend eigen boekingen om importlussen te vermijden.
+Vakantiehuis Frankrijk blijft handmatig.

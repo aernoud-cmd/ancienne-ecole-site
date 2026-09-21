@@ -112,6 +112,29 @@ export async function setAirbnbSyncError(message) {
   });
 }
 
+// Independent snapshots: a failed provider never clears another provider.
+export const CALENDAR_SOURCES = ["airbnb", "booking", "vrbo", "micazu"];
+export async function getCalendarSnapshots({ strong = false } = {}) {
+  return Object.fromEntries(await Promise.all(CALENDAR_SOURCES.map(async source => [
+    source, await calendarStore().get(`${source}-busy-nights`, { type: "json", ...(strong ? STRONG : {}) })
+  ])));
+}
+export async function saveCalendarSnapshot(source, nights, eventCount) {
+  if (!CALENDAR_SOURCES.includes(source)) throw new Error("Unknown calendar source");
+  const now = new Date().toISOString();
+  await calendarStore().setJSON(`${source}-busy-nights`, {
+    source, nights, eventCount, syncedAt: now, lastAttemptAt: now, lastError: null
+  });
+}
+export async function saveCalendarError(source, message) {
+  if (!CALENDAR_SOURCES.includes(source)) throw new Error("Unknown calendar source");
+  const store = calendarStore();
+  const key = `${source}-busy-nights`;
+  const current = await store.get(key, { type: "json", ...STRONG }) || {};
+  const now = new Date().toISOString();
+  await store.setJSON(key, { ...current, lastError: message, lastErrorAt: now, lastAttemptAt: now });
+}
+
 // ---- Pricing settings ------------------------------------------------
 
 export async function getPricingSettings({ strong = false } = {}) {

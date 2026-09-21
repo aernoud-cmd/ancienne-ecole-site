@@ -179,7 +179,7 @@
     settings = data.settings;
     rates = data.rates;
     nightSources = data.nightSources;
-    renderSyncBanner(data.airbnbSync);
+    renderSyncBanner(data.calendarSync);
     renderBuildBadge(data.buildInfo);
     renderCalendar();
     renderSettingsForm();
@@ -490,27 +490,16 @@
     el.title = `Commit ${buildInfo.commit || "onbekend"} — deploy ${buildInfo.deployId || "onbekend"}. Als je hier een oude commit ziet na een nieuwe deploy, is de pagina nog niet ververst.`;
   }
 
-  function renderSyncBanner(sync) {
+  function renderSyncBanner(sources) {
     const el = document.getElementById("ae-sync-banner");
-    const btn = document.getElementById("ae-sync-now-btn");
-    if (!sync) {
-      el.hidden = true;
-      return;
-    }
+    if (!sources) { el.hidden = true; return; }
     el.hidden = false;
-    const attempt = `Laatste synchronisatiepoging: ${fmtRelative(sync.attemptHoursAgo)}.`;
-    if (sync.lastError) {
-      el.className = "admin-banner warn";
-      el.innerHTML = `Airbnb-synchronisatie mislukt${sync.lastErrorAt ? " (" + fmtDateNL(sync.lastErrorAt.slice(0,10)) + ")" : ""}: ${escapeHtml(sync.lastError)}.<br>Laatst bekende, nog gebruikte Airbnb-data: ${sync.nightCount} nachten, succesvol gesynchroniseerd ${fmtRelative(sync.hoursAgo)}. ${attempt}`;
-    } else if (sync.hoursAgo != null && sync.hoursAgo > 6) {
-      el.className = "admin-banner warn";
-      el.textContent = `Airbnb-kalender is ${fmtRelative(sync.hoursAgo)} niet ververst — mogelijk verouderd. Normaal elke 3 uur. ${attempt}`;
-    } else if (sync.hoursAgo != null) {
-      el.className = "admin-banner ok";
-      el.textContent = `Airbnb-kalender laatst gesynchroniseerd: ${fmtRelative(sync.hoursAgo)} (${sync.nightCount} nachten bezet). ${attempt}`;
-    } else {
-      el.hidden = true;
-    }
+    const labels = { airbnb: "Airbnb", booking: "Booking.com", vrbo: "Vrbo", micazu: "Micazu" };
+    el.className = "admin-banner " + (sources.some(s => s.lastError || (s.configured && (s.hoursAgo == null || s.hoursAgo > 6))) ? "warn" : "ok");
+    el.innerHTML = sources.map(s => {
+      const state = !s.configured ? "nog niet gekoppeld" : s.lastError ? escapeHtml(s.lastError) : s.hoursAgo == null ? "wacht op eerste synchronisatie" : `ververst ${fmtRelative(s.hoursAgo)} · ${s.nightCount} bezette nachten`;
+      return `<div><b>${labels[s.source] || escapeHtml(s.source)}</b>: ${state}</div>`;
+    }).join("") + "<div>Automatisch elke 3 uur. Vakantiehuis Frankrijk: handmatig.</div>";
   }
 
   document.getElementById("ae-sync-now-btn").addEventListener("click", async () => {
@@ -524,8 +513,8 @@
         status.textContent = `Synchronisatie mislukt: ${data.error || "onbekende fout"}.`;
       } else {
         status.textContent = `✓ Gesynchroniseerd: ${data.nightCount} nachten bezet gevonden.`;
-        await loadPricing();
       }
+      await loadPricing();
     } catch (e) {
       if (e.message !== "not-authenticated") status.textContent = "Synchronisatie mislukt door een netwerkfout.";
     } finally {
@@ -536,7 +525,7 @@
 
   // ---- Calendar -----------------------------------------------------
 
-  const SOURCE_LABELS = { direct: "eigen boeking", requested: "aanvraag", airbnb: "Airbnb", blocked: "eigen blokkade" };
+  const SOURCE_LABELS = { direct: "eigen boeking", requested: "aanvraag", airbnb: "Airbnb", booking: "Booking.com", vrbo: "Vrbo", micazu: "Micazu", blocked: "eigen blokkade" };
 
   // A date is "occupied" — not available to guests — for any of four
   // reasons (see nightSources in admin-pricing.mjs): a real Airbnb/direct/
@@ -718,7 +707,7 @@
       const list = occupiedDates.length <= 6
         ? occupiedDates.map(fmtDateNL).join(", ")
         : `${occupiedDates.slice(0, 6).map(fmtDateNL).join(", ")}, …`;
-      occupancyNote.innerHTML = `⚠ ${occupiedDates.length} van de ${dates.length} geselecteerde ${plural} <b>niet beschikbaar voor gasten</b> (bezet of geblokkeerd): ${list}. Hier iets opslaan wijzigt alleen prijs/instellingen — het maakt deze data niet boekbaar. Pas de bezetting zelf (Airbnb-sync, boekingen, eigen blokkade) wijzigt dat.`;
+      occupancyNote.innerHTML = `⚠ ${occupiedDates.length} van de ${dates.length} geselecteerde ${plural} <b>niet beschikbaar voor gasten</b> (bezet of geblokkeerd): ${list}. Hier iets opslaan wijzigt alleen prijs/instellingen — het maakt deze data niet boekbaar. Pas de bezetting zelf (kalendersynchronisatie, boekingen, eigen blokkade) wijzigt dat.`;
     } else {
       occupancyNote.hidden = true;
     }

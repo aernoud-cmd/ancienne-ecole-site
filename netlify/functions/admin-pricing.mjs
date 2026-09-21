@@ -25,7 +25,7 @@ export default async (req) => {
 
   if (req.method === "GET") {
     const [settings, rates] = await Promise.all([getPricingSettings({ strong: true }), getAllRates({ strong: true })]);
-    const { airbnbNights, confirmedNights, pendingNights, ownBlockedNights } = await computeAvailability(settings, { strong: true });
+    const { calendarSnapshots, confirmedNights, pendingNights, ownBlockedNights } = await computeAvailability(settings, { strong: true });
     // Each busy night gets ONE source label. Priority (highest first):
     // "direct" > "requested" > "airbnb" > "blocked". A night you confirmed
     // directly will also show up in your own Airbnb export once Airbnb has
@@ -36,7 +36,9 @@ export default async (req) => {
     // hence "blocked" is applied first and can be overwritten by the others.
     const nightSources = {};
     for (const n of ownBlockedNights) nightSources[n] = "blocked";
-    for (const n of airbnbNights) nightSources[n] = "airbnb";
+    for (const [source, snapshot] of Object.entries(calendarSnapshots)) {
+      for (const n of snapshot?.nights || []) nightSources[n] = source;
+    }
     for (const n of pendingNights) nightSources[n] = "requested";
     for (const n of confirmedNights) nightSources[n] = "direct";
     const syncMeta = await getAirbnbSyncMeta();
@@ -45,6 +47,12 @@ export default async (req) => {
       settings,
       rates,
       nightSources,
+      calendarSync: Object.entries(calendarSnapshots).map(([source, snapshot]) => ({
+        source, configured: Boolean(process.env[`${source.toUpperCase()}_ICAL_URL`]),
+        syncedAt: snapshot?.syncedAt || null,
+        hoursAgo: snapshot?.syncedAt ? Math.round(hoursSince(snapshot.syncedAt) * 10) / 10 : null,
+        nightCount: snapshot?.nights?.length || 0, lastError: snapshot?.lastError || null
+      })),
       airbnbSync: syncMeta
         ? {
             syncedAt: syncMeta.syncedAt, // last SUCCESSFUL sync
